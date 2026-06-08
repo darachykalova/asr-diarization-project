@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+
+data/input/
+data/output/
+data/normalized/
+
+*.wav
+*.mp3
+
+.cache/
+.idea/
+.vscode/
+
+.env
