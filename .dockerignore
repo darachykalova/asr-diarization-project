@@ -1,0 +1,14 @@
+venv/
+.git/
+__pycache__/
+*.pyc
+
+data/input/
+data/output/
+data/normalized/
+
+*.mp3
+*.wav
+
+.cache/
+.env
