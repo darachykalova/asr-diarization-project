@@ -1,90 +1,216 @@
 from typing import Optional
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class SpeechSegment(BaseModel):
-    """
-    Speech segment detected by VAD.
-    """
+    start: float = Field(
+        ...,
+        ge=0,
+        description="Speech segment start time in seconds."
+    )
+    end: float = Field(
+        ...,
+        ge=0,
+        description="Speech segment end time in seconds."
+    )
 
-    start: float
-    end: float
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.end < self.start:
+            raise ValueError("end must be greater than or equal to start")
+        return self
 
 
 class SpeakerSegment(BaseModel):
-    """
-    Segment with assigned speaker label.
-    """
+    start: float = Field(
+        ...,
+        ge=0,
+        description="Speaker segment start time in seconds."
+    )
+    end: float = Field(
+        ...,
+        ge=0,
+        description="Speaker segment end time in seconds."
+    )
+    speaker: str = Field(
+        ...,
+        min_length=1,
+        description="Speaker label, for example SPEAKER_00."
+    )
+    diarization_source: str = Field(
+        "placeholder",
+        description="Diarization source, for example pyannote."
+    )
 
-    start: float
-    end: float
-    speaker: str
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.end < self.start:
+            raise ValueError("end must be greater than or equal to start")
+        return self
 
 
 class Word(BaseModel):
-    """
-    Recognized word with word-level timestamps.
-    """
+    word: str = Field(
+        ...,
+        min_length=1,
+        description="Recognized word."
+    )
+    start: float = Field(
+        ...,
+        ge=0,
+        description="Word start time in seconds."
+    )
+    end: float = Field(
+        ...,
+        ge=0,
+        description="Word end time in seconds."
+    )
+    confidence: float = Field(
+        ...,
+        ge=0,
+        le=1,
+        description="Word recognition confidence from 0 to 1."
+    )
 
-    word: str
-    start: float
-    end: float
-    confidence: float
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.end < self.start:
+            raise ValueError("end must be greater than or equal to start")
+        return self
 
 
 class TranscriptSegment(BaseModel):
-    """
-    Final transcript segment after ASR, diarization and alignment.
-    """
+    id: int = Field(
+        ...,
+        ge=0,
+        description="Transcript segment index."
+    )
+    start: float = Field(
+        ...,
+        ge=0,
+        description="Segment start time in seconds."
+    )
+    end: float = Field(
+        ...,
+        ge=0,
+        description="Segment end time in seconds."
+    )
+    speaker: str = Field(
+        ...,
+        min_length=1,
+        description="Speaker label assigned to this segment."
+    )
+    overlap: bool = Field(
+        False,
+        description="Whether this segment contains overlapping speech."
+    )
+    text: str = Field(
+        ...,
+        min_length=1,
+        description="Recognized transcript text."
+    )
+    words: list[Word] = Field(
+        default_factory=list,
+        description="Word-level timestamps."
+    )
+    alignment_source: str = Field(
+        ...,
+        min_length=1,
+        description="Alignment source."
+    )
+    diarization_source: str = Field(
+        "placeholder",
+        description="Diarization source."
+    )
 
-    id: int
-    start: float
-    end: float
-    speaker: str
-    overlap: bool
-    text: str
-    words: list[Word]
-    alignment_source: str
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.end < self.start:
+            raise ValueError("end must be greater than or equal to start")
+        return self
 
 
 class SpeakerEmbedding(BaseModel):
-    """
-    Speaker embedding metadata.
-
-    Current version stores placeholder embedding.
-    Later vector will contain real voice embedding values.
-    """
-
-    speaker: str
-    audio_path: str
-    embedding_source: str
-    vector: list[float]
-    vector_dim: int
+    speaker: str = Field(
+        ...,
+        min_length=1,
+        description="Speaker label."
+    )
+    audio_path: str = Field(
+        ...,
+        min_length=1,
+        description="Path to normalized audio file."
+    )
+    embedding_source: str = Field(
+        ...,
+        min_length=1,
+        description="Speaker embedding source."
+    )
+    vector: list[float] = Field(
+        default_factory=list,
+        description="Speaker embedding vector."
+    )
+    vector_dim: int = Field(
+        ...,
+        ge=0,
+        description="Speaker embedding vector dimension."
+    )
 
 
 class TranscriptResult(BaseModel):
-    """
-    Full transcript result saved to JSON.
-    """
+    input_audio: str = Field(
+        ...,
+        min_length=1,
+        description="Original uploaded audio path."
+    )
+    normalized_audio: str = Field(
+        ...,
+        min_length=1,
+        description="Normalized audio path."
+    )
+    speech_segments: list[SpeechSegment] = Field(
+        default_factory=list,
+        description="Speech activity segments."
+    )
+    speaker_segments: list[SpeakerSegment] = Field(
+        default_factory=list,
+        description="Speaker diarization segments."
+    )
+    speaker_embeddings: list[SpeakerEmbedding] = Field(
+        default_factory=list,
+        description="Speaker embedding metadata."
+    )
+    segments: list[TranscriptSegment] = Field(
+        default_factory=list,
+        description="Final transcript segments."
+    )
+    full_text: str = Field(
+        "",
+        description="Full transcript text."
+    )
 
-    input_audio: str
-    normalized_audio: str
-    speech_segments: list[SpeechSegment]
-    speaker_segments: list[SpeakerSegment]
-    speaker_embeddings: list[SpeakerEmbedding]
-    segments: list[TranscriptSegment]
-    full_text: str
 
 class PipelineRunResult(BaseModel):
-    """
-    Result of pipeline execution.
-
-    Used to represent both successful and failed processing.
-    Later this structure will be used by Celery worker jobs.
-    """
-
-    job_id: str
-    status: str
-    success: bool
-    transcript: Optional[TranscriptResult] = None
-    error: Optional[str] = None
+    job_id: str = Field(
+        ...,
+        min_length=1,
+        description="Processing job ID."
+    )
+    status: str = Field(
+        ...,
+        min_length=1,
+        description="Processing status."
+    )
+    success: bool = Field(
+        ...,
+        description="Whether processing finished successfully."
+    )
+    transcript: Optional[TranscriptResult] = Field(
+        None,
+        description="Transcript result if processing succeeded."
+    )
+    error: Optional[str] = Field(
+        None,
+        description="Error message if processing failed."
+    )

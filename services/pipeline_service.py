@@ -18,19 +18,12 @@ class PipelineService:
     1. ffmpeg normalization
     2. VAD
     3. ASR
-    4. diarization
+    4. real diarization with pyannote.audio
     5. alignment
     6. speaker embeddings
     """
 
-    def __init__(self, model_size: str = "base", language: str = "ru"):
-        """
-        Initializes all services used in the pipeline.
-
-        Parameters:
-            model_size (str): Whisper model size.
-            language (str): Audio language code.
-        """
+    def __init__(self, model_size: str = "base", language: str | None = None):
         self.language = language
 
         self.vad_service = VADService()
@@ -45,17 +38,6 @@ class PipelineService:
         normalized_audio: str,
         job_id: str | None = None
     ) -> PipelineRunResult:
-        """
-        Processes audio file and returns pipeline run result.
-
-        Parameters:
-            input_audio (str): Path to source audio file.
-            normalized_audio (str): Path where normalized audio will be saved.
-            job_id (str | None): Existing job id. If None, a new one is generated.
-
-        Returns:
-            PipelineRunResult: Successful result with transcript or failed result with error.
-        """
         if job_id is None:
             job_id = f"job_{uuid4().hex}"
 
@@ -87,12 +69,6 @@ class PipelineService:
         input_audio: str,
         normalized_audio: str
     ) -> TranscriptResult:
-        """
-        Runs the actual audio processing pipeline.
-
-        This method may raise exceptions.
-        process_audio() catches them and converts to PipelineRunResult.
-        """
         input_audio_path = Path(input_audio)
 
         normalized_file = normalize_audio(
@@ -108,6 +84,7 @@ class PipelineService:
         )
 
         speaker_segments = self.diarization_service.diarize(
+            audio_path=normalized_file,
             speech_segments=speech_segments
         )
 
@@ -132,7 +109,10 @@ class PipelineService:
             speaker_segments=speaker_segments,
             speaker_embeddings=speaker_embeddings,
             segments=aligned_segments,
-            full_text=" ".join(segment["text"] for segment in aligned_segments)
+            full_text=" ".join(
+                segment["text"]
+                for segment in aligned_segments
+            )
         )
 
         return transcript_result

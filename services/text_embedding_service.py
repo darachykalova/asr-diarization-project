@@ -1,4 +1,9 @@
+import logging
+
 from sentence_transformers import SentenceTransformer
+
+
+logger = logging.getLogger(__name__)
 
 
 class TextEmbeddingService:
@@ -18,9 +23,9 @@ class TextEmbeddingService:
 
     def __init__(self):
         if TextEmbeddingService._model is None:
-            print(
-                f"Loading SentenceTransformer model from "
-                f"{self.MODEL_NAME}"
+            logger.info(
+                "Loading SentenceTransformer model from %s",
+                self.MODEL_NAME
             )
 
             TextEmbeddingService._model = SentenceTransformer(
