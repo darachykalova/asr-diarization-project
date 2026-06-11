@@ -14,7 +14,7 @@ router = APIRouter(
     summary="Health check",
     description="Checks whether the API service is running."
 )
-def health_check():
+async def health_check():
     return {
         "status": "ok",
         "service": "Audio Intelligence API"

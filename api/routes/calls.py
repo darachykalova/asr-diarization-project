@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Query
 
-from services.qdrant_service import QdrantService
 from schemas.api.call_schema import (
     CallSearchResponse,
     CallSegmentsResponse,
 )
+from services.async_qdrant_service import AsyncQdrantService
 
 
 router = APIRouter(
@@ -22,7 +22,7 @@ router = APIRouter(
         "If job_id is not provided, search runs globally across all processed calls."
     )
 )
-def search_calls(
+async def search_calls(
     query: str = Query(
         ...,
         min_length=1,
@@ -47,9 +47,9 @@ def search_calls(
         description="Maximum number of results."
     )
 ):
-    qdrant_service = QdrantService()
+    qdrant_service = AsyncQdrantService()
 
-    results = qdrant_service.search(
+    results = await qdrant_service.search(
         query=query,
         job_id=job_id,
         speaker=speaker,
@@ -74,10 +74,10 @@ def search_calls(
     summary="Get call by job ID",
     description="Returns transcript segments indexed for one processed call."
 )
-def get_call_by_job_id(job_id: str):
-    qdrant_service = QdrantService()
+async def get_call_by_job_id(job_id: str):
+    qdrant_service = AsyncQdrantService()
 
-    segments = qdrant_service.get_segments_by_job(
+    segments = await qdrant_service.get_segments_by_job(
         job_id
     )
 

@@ -2,11 +2,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, File, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from celery_app import celery_app
-from tasks import process_audio_task
 from schemas.api.transcription_schema import TranscriptionTaskResponse
+from tasks import process_audio_task
 
 
 CELERY_STATUS_MAP = {
@@ -26,18 +27,15 @@ router = APIRouter(
 )
 
 
-@router.post(
-    "",
-    response_model=TranscriptionTaskResponse,
-    summary="Create transcription task from audio path",
-    description="Creates a background transcription task using an existing audio file path."
-)
-def create_transcription(audio_path: str):
+def _create_task_response(
+    input_audio: str,
+    include_input_audio: bool
+) -> dict:
     job_id = str(uuid4())
 
     process_audio_task.apply_async(
         kwargs={
-            "input_audio": audio_path,
+            "input_audio": input_audio,
             "job_id": job_id
         },
         task_id=job_id
@@ -56,8 +54,35 @@ def create_transcription(audio_path: str):
             task_result.state
         ),
         "status_url": f"/jobs/{job_id}",
-        "input_audio": None
+        "input_audio": input_audio if include_input_audio else None
     }
+
+
+def _save_uploaded_file(
+    input_audio_path: Path,
+    content: bytes
+) -> None:
+    input_audio_path.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    with open(input_audio_path, "wb") as output_file:
+        output_file.write(content)
+
+
+@router.post(
+    "",
+    response_model=TranscriptionTaskResponse,
+    summary="Create transcription task from audio path",
+    description="Creates a background transcription task using an existing audio file path."
+)
+async def create_transcription(audio_path: str):
+    return await run_in_threadpool(
+        _create_task_response,
+        audio_path,
+        False
+    )
 
 
 @router.post(
@@ -75,13 +100,15 @@ async def upload_transcription(
     job_id = str(uuid4())
 
     upload_dir = Path("data/input/jobs") / job_id
-    upload_dir.mkdir(parents=True, exist_ok=True)
-
     input_audio_path = upload_dir / file.filename
 
-    with open(input_audio_path, "wb") as output_file:
-        content = await file.read()
-        output_file.write(content)
+    content = await file.read()
+
+    await run_in_threadpool(
+        _save_uploaded_file,
+        input_audio_path,
+        content
+    )
 
     process_audio_task.apply_async(
         kwargs={
