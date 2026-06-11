@@ -1,5 +1,6 @@
 from celery.result import AsyncResult
 from fastapi import APIRouter, Query
+from starlette.concurrency import run_in_threadpool
 
 from celery_app import celery_app
 from schemas.api.job_schema import JobStatusResponse
@@ -22,19 +23,10 @@ router = APIRouter(
 )
 
 
-@router.get(
-    "/{job_id}",
-    response_model=JobStatusResponse,
-    summary="Get job status",
-    description="Returns task status directly from Celery backend."
-)
-def get_job_status(
+def _build_job_status_response(
     job_id: str,
-    include_result: bool = Query(
-        False,
-        description="Whether to include task result when task is finished."
-    )
-):
+    include_result: bool
+) -> dict:
     task_result = AsyncResult(
         job_id,
         app=celery_app
@@ -62,3 +54,23 @@ def get_job_status(
         response["result"] = task_result.result
 
     return response
+
+
+@router.get(
+    "/{job_id}",
+    response_model=JobStatusResponse,
+    summary="Get job status",
+    description="Returns task status directly from Celery backend."
+)
+async def get_job_status(
+    job_id: str,
+    include_result: bool = Query(
+        False,
+        description="Whether to include task result when task is finished."
+    )
+):
+    return await run_in_threadpool(
+        _build_job_status_response,
+        job_id,
+        include_result
+    )
