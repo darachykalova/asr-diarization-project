@@ -6,8 +6,12 @@ class AlignmentService:
     it does not use LLM yet and does not change the text.
     It only prepares the final segment structure.
 
-    Later this service will be replaced with LLM-based alignment.
+    Speaker labels are produced by diarization service.
+    alignment_source shows that word/text alignment is still placeholder.
+    diarization_source shows which diarization engine assigned the speaker.
     """
+
+    ALIGNMENT_SOURCE = "placeholder"
 
     def align(self, segments: list[dict]) -> list[dict]:
         """
@@ -27,10 +31,14 @@ class AlignmentService:
                 "start": segment["start"],
                 "end": segment["end"],
                 "speaker": segment["speaker"],
-                "overlap": False,
+                "overlap": segment.get("overlap", False),
                 "text": segment["text"],
                 "words": segment["words"],
-                "alignment_source": "placeholder"
+                "alignment_source": self.ALIGNMENT_SOURCE,
+                "diarization_source": segment.get(
+                    "diarization_source",
+                    "unknown"
+                )
             }
 
             aligned_segments.append(aligned_segment)

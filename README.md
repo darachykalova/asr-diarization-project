@@ -1,193 +1,516 @@
-# ASR Diarization Service
+# ASR Diarization & Semantic Search Service
 
-## Описание проекта
+## Overview
 
-Сервис предназначен для автоматической обработки аудиозаписей:
+This project is an asynchronous audio processing platform that provides:
 
-* загрузка аудиофайлов через REST API;
-* асинхронная обработка задач;
-* распознавание речи (ASR);
-* сегментация транскрипта;
-* сохранение результатов обработки;
-* индексирование сегментов в векторной базе данных Qdrant;
-* подготовка инфраструктуры для семантического поиска и диаризации спикеров.
+* Automatic Speech Recognition (ASR)
+* Speaker Diarization
+* Multilingual Language Detection
+* Semantic Search
+* Keyword Search
+* Hybrid Search
+* Vector Storage using Qdrant
+* Background Processing using Celery
 
----
-
-# Текущий статус проекта
-
-## Реализовано
-
-### API
-
-Реализован REST API на FastAPI.
-
-Поддерживаются операции:
-
-* загрузка аудиофайла;
-* создание задачи обработки;
-* получение статуса задачи;
-* получение результата транскрибации;
-* работа с данными в Qdrant.
+The service allows users to upload audio files, automatically generate speaker-attributed transcripts, store transcript segments in a vector database, and perform semantic retrieval across processed conversations.
 
 ---
 
-### Асинхронная обработка
+# Features
 
-Реализована очередь задач на базе:
+## Audio Processing
 
-* Celery
-* Redis
+* Audio file upload via REST API
+* Background task execution using Celery
+* Processing status tracking
+* Transcript persistence
 
-Поддерживаются статусы:
+## Speech Recognition
 
-* queued
-* processing
-* done
-* failed
+Powered by Faster-Whisper.
 
----
+Capabilities:
 
-### Распознавание речи
+* Automatic language detection
+* Word-level timestamps
+* Multilingual transcription
+* CPU-based inference
 
-Интегрирована модель Faster-Whisper.
+Supported languages include:
 
-Выполняется:
+* English
+* Russian
+* German
+* French
+* Spanish
 
-* загрузка аудио;
-* преобразование аудио;
-* автоматическое распознавание речи;
-* формирование итогового текста.
-
----
-
-### Хранение результатов
-
-Для каждой задачи автоматически сохраняются:
-
-* transcript.json
-* job_status.json
+and all languages supported by Whisper.
 
 ---
 
-### Векторная база данных
+## Speaker Diarization
 
-Интегрирован Qdrant.
+Powered by pyannote.audio.
 
-Реализовано:
+Capabilities:
 
-* создание коллекций;
-* сохранение сегментов транскрипта;
-* получение сегментов по job_id;
-* поиск по сохранённым сегментам.
-
----
-
-### Text Embeddings
-
-Подключена модель:
-
-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
-
-Характеристики:
-
-* размерность вектора: 384;
-* поддержка русского языка;
-* сохранение embeddings в Qdrant.
-
----
-
-# Демонстрация текущего результата
-
-Сценарий работы:
-
-1. Пользователь загружает аудиофайл через API.
-2. Создаётся задача обработки.
-3. Задача передаётся в Celery.
-4. Faster-Whisper выполняет распознавание речи.
-5. Текст разбивается на сегменты.
-6. Для сегментов создаются embeddings.
-7. Сегменты сохраняются в Qdrant.
-8. Результат доступен через REST API.
-
----
-
-# Технологический стек
-
-Backend:
-
-* Python 3.12
-* FastAPI
-* Uvicorn
-
-Очереди задач:
-
-* Celery
-* Redis
-
-Распознавание речи:
-
-* Faster-Whisper
-
-Векторный поиск:
-
-* Qdrant
-
-Embeddings:
-
-* Sentence Transformers
-
-Контейнеризация:
-
-* Docker
-
----
-
-# Что находится в разработке
-
-## Диаризация спикеров
-
-Планируется интеграция модели определения говорящих.
-
-Текущая версия использует временную заглушку.
-
----
-
-## Speaker Embeddings
-
-Планируется добавление голосовых embeddings для каждого спикера.
-
-Текущая версия использует временную заглушку.
+* Automatic speaker detection
+* Dynamic number of speakers
+* Speaker assignment to transcript segments
+* Speaker-aware transcript generation
 
 ---
 
 ## Semantic Search
 
-Планируется реализация полноценного семантического поиска по embeddings в Qdrant.
+Powered by:
 
-В текущей версии доступен поиск по текстовым совпадениям.
+* Sentence Transformers
+* Qdrant
+
+Model:
+
+```text
+sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+```
+
+Capabilities:
+
+* Semantic similarity search
+* Multilingual embeddings
+* Search across all conversations
+* Search inside a specific job
+* Hybrid keyword + semantic ranking
 
 ---
 
-## Постоянное хранилище
+# Architecture
 
-Планируется подключение PostgreSQL для хранения:
-
-* задач;
-* метаданных;
-* результатов обработки.
+```text
+Client
+   |
+   v
+FastAPI
+   |
+   v
+Redis
+   |
+   v
+Celery Worker
+   |
+   +--> Faster Whisper
+   |
+   +--> Pyannote Diarization
+   |
+   +--> Sentence Transformers
+   |
+   +--> Qdrant
+```
 
 ---
 
-# Промежуточный результат
+# Project Structure
 
-На текущем этапе реализован рабочий MVP сервиса:
+```text
+api/
+├── main.py
+├── routes/
+│   ├── calls.py
+│   ├── health.py
+│   ├── jobs.py
+│   ├── transcripts.py
+│   └── transcriptions.py
 
-* загрузка аудио;
-* асинхронная обработка;
-* распознавание речи;
-* сохранение результатов;
-* генерация embeddings;
-* интеграция с Qdrant.
+schemas/
+├── transcript_schema.py
+└── api/
+    ├── call_schema.py
+    ├── job_schema.py
+    └── transcription_schema.py
 
-Сервис готов к демонстрации базового сценария обработки аудио и дальнейшему развитию в сторону полнофункциональной системы диаризации и семантического поиска.
+services/
+├── asr_service.py
+├── diarization_service.py
+├── pipeline_service.py
+├── qdrant_service.py
+├── text_embedding_service.py
+└── worker_job_service.py
+
+data/
+├── input/
+└── output/
+
+celery_app.py
+tasks.py
+Dockerfile
+docker-compose.yml
+requirements.txt
+README.md
+```
+
+---
+
+# Technology Stack
+
+## Backend
+
+* Python 3.12
+* FastAPI
+* Uvicorn
+
+## Speech Processing
+
+* Faster-Whisper
+* Pyannote Audio
+
+## Vector Search
+
+* Qdrant
+* Sentence Transformers
+
+## Background Processing
+
+* Celery
+* Redis
+
+## Infrastructure
+
+* Docker
+* Docker Compose
+
+---
+
+# Installation
+
+## Clone Repository
+
+```bash
+git clone <repository-url>
+cd asr_diarization_project
+```
+
+## Create Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+## Activate Environment
+
+Windows PowerShell:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+## Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+# Infrastructure Setup
+
+Start Redis and Qdrant:
+
+```bash
+docker compose up -d
+```
+
+Verify services:
+
+Qdrant Dashboard:
+
+```text
+http://localhost:6333/dashboard
+```
+
+Redis:
+
+```text
+localhost:6379
+```
+
+---
+
+# Hugging Face Token
+
+Speaker diarization requires a Hugging Face access token.
+
+PowerShell:
+
+```powershell
+$env:HF_TOKEN="your_hugging_face_token"
+```
+
+The token must have access to:
+
+* pyannote/speaker-diarization-3.1
+* pyannote/segmentation-3.0
+
+---
+
+# Running the Application
+
+## Start Celery Worker
+
+```bash
+python -m celery -A tasks worker --loglevel=info --pool=solo --concurrency=1
+```
+
+## Start FastAPI
+
+Open a second terminal:
+
+```bash
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+# Quick Start
+
+Open three terminals.
+
+### Terminal 1 — Infrastructure
+
+```bash
+docker compose up -d
+```
+
+### Terminal 2 — Celery Worker
+
+```powershell
+$env:HF_TOKEN="your_hugging_face_token"
+
+python -m celery -A tasks worker --loglevel=info --pool=solo
+```
+
+### Terminal 3 — FastAPI
+
+```bash
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+After startup:
+
+Swagger UI:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Qdrant Dashboard:
+
+```text
+http://localhost:6333/dashboard
+```
+
+---
+
+# API Documentation
+
+Swagger UI:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+---
+
+# API Endpoints
+
+## Health
+
+```http
+GET /
+```
+
+## Transcriptions
+
+```http
+POST /transcriptions
+POST /transcriptions/upload
+```
+
+## Jobs
+
+```http
+GET /jobs/{job_id}
+```
+
+## Transcripts
+
+```http
+GET /transcripts/{job_id}
+```
+
+## Calls
+
+```http
+GET /calls/{job_id}
+GET /calls/search
+```
+
+---
+
+# Processing Workflow
+
+1. Upload audio file.
+2. Create processing task.
+3. Execute transcription.
+4. Execute speaker diarization.
+5. Align speakers with transcript segments.
+6. Generate embeddings.
+7. Store transcript segments in Qdrant.
+8. Return transcript and search availability.
+
+---
+
+# Search Modes
+
+## Keyword Search
+
+Exact text matching.
+
+Example:
+
+```text
+мошенники
+```
+
+---
+
+## Semantic Search
+
+Embedding similarity search.
+
+Example:
+
+```text
+обман
+```
+
+Can return:
+
+```text
+Это мошенники
+Не дайте себя обмануть
+```
+
+---
+
+## Hybrid Search
+
+Combines:
+
+* keyword relevance
+* semantic similarity
+
+Provides the most accurate ranking.
+
+---
+
+# Search Scope
+
+The search endpoint supports two modes.
+
+### Global Search
+
+Search across all processed conversations.
+
+```text
+job_id = null
+```
+
+### Job-Specific Search
+
+Search inside a single conversation.
+
+```text
+job_id = <job_uuid>
+```
+
+---
+
+# Output Artifacts
+
+For every processed job the system stores:
+
+```text
+transcript.json
+job_status.json
+```
+
+and indexed transcript segments inside Qdrant.
+
+---
+
+# Troubleshooting
+
+## HF_TOKEN is not set
+
+Speaker diarization models cannot be loaded.
+
+Solution:
+
+```powershell
+$env:HF_TOKEN="your_hugging_face_token"
+```
+
+---
+
+## Redis Connection Error
+
+Verify that Redis is running:
+
+```bash
+docker compose up -d
+```
+
+---
+
+## Qdrant Connection Error
+
+Verify that Qdrant is available:
+
+```text
+http://localhost:6333/dashboard
+```
+
+---
+
+## mkl_malloc: failed to allocate memory
+
+The machine does not have enough RAM for the selected Whisper model.
+
+Possible solutions:
+
+* Use a smaller model (`tiny` or `base`)
+* Close memory-intensive applications
+* Increase available system memory
+
+---
+
+# Current Status
+
+The project is fully functional and supports:
+
+* asynchronous audio processing
+* multilingual speech recognition
+* speaker diarization
+* transcript generation
+* semantic search
+* hybrid search
+* vector storage and retrieval
+
+Future improvements may include:
+
+* PostgreSQL metadata storage
+* speaker voice embeddings
+* speaker identification across conversations
+* LLM-based transcript enrichment
+* advanced analytics
