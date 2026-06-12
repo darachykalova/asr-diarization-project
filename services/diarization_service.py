@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from scipy.io import wavfile
 
+from services.timing import measure_time
+
 
 class DiarizationService:
     """
@@ -71,6 +73,7 @@ class DiarizationService:
 
         return waveform, int(sample_rate)
 
+    @measure_time("diarization")
     def diarize(
         self,
         audio_path: str,

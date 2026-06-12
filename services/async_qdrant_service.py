@@ -6,6 +6,8 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchValue
 from starlette.concurrency import run_in_threadpool
 
+from services.timing import measure_time
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,8 @@ class AsyncQdrantService:
             host=host or os.getenv("QDRANT_HOST", "localhost"),
             port=port or int(os.getenv("QDRANT_PORT", "6333"))
         )
+
+        self.embedding_service = None
 
     async def health_check(self) -> bool:
         try:
@@ -171,6 +175,7 @@ class AsyncQdrantService:
             logger.exception("Async Qdrant keyword search failed")
             return []
 
+    @measure_time("semantic_search")
     async def semantic_search(
         self,
         query: str,
@@ -178,28 +183,18 @@ class AsyncQdrantService:
         speaker: str | None = None,
         limit: int = DEFAULT_LIMIT
     ) -> list[dict]:
-        """
-        Smart semantic search.
-
-        It combines:
-        - exact keyword matches
-        - vector similarity matches
-
-        Publicly this is exposed as one semantic search mode.
-        """
-
         keyword_results = await self.keyword_search(
             query=query,
             job_id=job_id,
             speaker=speaker,
-            limit=50
+            limit=20
         )
 
         vector_results = await self._vector_search(
             query=query,
             job_id=job_id,
             speaker=speaker,
-            limit=50
+            limit=20
         )
 
         merged = {}
@@ -437,10 +432,17 @@ class AsyncQdrantService:
         )
 
     async def _create_embedding_service_safely(self):
+        if self.embedding_service is not None:
+            return self.embedding_service
+
         try:
             from services.text_embedding_service import TextEmbeddingService
 
-            return await run_in_threadpool(TextEmbeddingService)
+            self.embedding_service = await run_in_threadpool(
+                TextEmbeddingService
+            )
+
+            return self.embedding_service
 
         except Exception as error:
             logger.warning(

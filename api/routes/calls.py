@@ -1,3 +1,5 @@
+from enum import Enum
+
 from fastapi import APIRouter, Query
 
 from schemas.api.call_schema import (
@@ -5,6 +7,11 @@ from schemas.api.call_schema import (
     CallSegmentsResponse,
 )
 from services.async_qdrant_service import AsyncQdrantService
+
+
+class SearchMode(str, Enum):
+    KEYWORD = "keyword"
+    SEMANTIC = "semantic"
 
 
 router = APIRouter(
@@ -19,7 +26,6 @@ router = APIRouter(
     summary="Search calls",
     description=(
         "Searches transcript segments using keyword or semantic mode. "
-        "Semantic mode combines exact keyword matches with vector similarity. "
         "If job_id is not provided, search runs globally across all processed calls."
     )
 )
@@ -37,9 +43,9 @@ async def search_calls(
         None,
         description="Optional speaker label, for example SPEAKER_00."
     ),
-    mode: str = Query(
-        "semantic",
-        description="Search mode: keyword or semantic."
+    mode: SearchMode = Query(
+    ...,
+    description="Search mode."
     ),
     limit: int = Query(
         10,
@@ -54,7 +60,7 @@ async def search_calls(
         query=query,
         job_id=job_id,
         speaker=speaker,
-        mode=mode,
+        mode=mode.value,
         limit=limit
     )
 
@@ -62,7 +68,7 @@ async def search_calls(
         "query": query,
         "job_id": job_id,
         "speaker": speaker,
-        "mode": mode,
+        "mode": mode.value,
         "limit": limit,
         "count": len(results),
         "results": results

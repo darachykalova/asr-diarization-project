@@ -7,6 +7,7 @@ from services.vad_service import VADService
 from services.diarization_service import DiarizationService
 from services.alignment_service import AlignmentService
 from services.embedding_service import EmbeddingService
+from services.timing import measure_time
 from schemas.transcript_schema import TranscriptResult, PipelineRunResult
 
 
@@ -64,6 +65,7 @@ class PipelineService:
                 error=str(error)
             )
 
+    @measure_time("full_pipeline")
     def _run_pipeline(
         self,
         input_audio: str,
