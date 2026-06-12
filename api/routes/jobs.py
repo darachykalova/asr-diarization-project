@@ -1,5 +1,5 @@
 from celery.result import AsyncResult
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 from starlette.concurrency import run_in_threadpool
 
 from celery_app import celery_app
@@ -24,8 +24,7 @@ router = APIRouter(
 
 
 def _build_job_status_response(
-    job_id: str,
-    include_result: bool
+    job_id: str
 ) -> dict:
     task_result = AsyncResult(
         job_id,
@@ -36,22 +35,15 @@ def _build_job_status_response(
 
     response = {
         "job_id": job_id,
-        "celery_state": celery_state,
         "status": CELERY_STATUS_MAP.get(
             celery_state,
             celery_state
         ),
-        "ready": task_result.ready(),
-        "successful": task_result.successful(),
-        "failed": task_result.failed()
+        "error": None
     }
 
     if task_result.failed():
         response["error"] = str(task_result.result)
-        response["traceback"] = task_result.traceback
-
-    if include_result and task_result.ready() and not task_result.failed():
-        response["result"] = task_result.result
 
     return response
 
@@ -60,17 +52,10 @@ def _build_job_status_response(
     "/{job_id}",
     response_model=JobStatusResponse,
     summary="Get job status",
-    description="Returns task status directly from Celery backend."
+    description="Returns simplified processing status for a background task."
 )
-async def get_job_status(
-    job_id: str,
-    include_result: bool = Query(
-        False,
-        description="Whether to include task result when task is finished."
-    )
-):
+async def get_job_status(job_id: str):
     return await run_in_threadpool(
         _build_job_status_response,
-        job_id,
-        include_result
+        job_id
     )

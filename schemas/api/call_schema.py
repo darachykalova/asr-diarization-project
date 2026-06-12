@@ -10,7 +10,7 @@ class CallSegmentResponse(BaseModel):
     )
     score_type: Optional[str] = Field(
         None,
-        description="Search score type: keyword, semantic or hybrid."
+        description="Search score type: keyword or semantic."
     )
     job_id: str = Field(
         ...,
@@ -56,11 +56,11 @@ class CallSegmentResponse(BaseModel):
     )
     keyword_score: Optional[float] = Field(
         None,
-        description="Keyword score for hybrid search."
+        description="Exact keyword score used by semantic search."
     )
     semantic_score: Optional[float] = Field(
         None,
-        description="Semantic score for hybrid search."
+        description="Vector similarity score used by semantic search."
     )
 
 
@@ -98,7 +98,7 @@ class CallSearchResponse(BaseModel):
     mode: str = Field(
         ...,
         min_length=1,
-        description="Search mode: keyword, semantic or hybrid."
+        description="Search mode: keyword or semantic."
     )
     limit: int = Field(
         ...,

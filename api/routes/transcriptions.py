@@ -1,24 +1,11 @@
 from pathlib import Path
 from uuid import uuid4
 
-from celery.result import AsyncResult
 from fastapi import APIRouter, File, UploadFile
 from starlette.concurrency import run_in_threadpool
 
-from celery_app import celery_app
 from schemas.api.transcription_schema import TranscriptionTaskResponse
 from tasks import process_audio_task
-
-
-CELERY_STATUS_MAP = {
-    "PENDING": "queued",
-    "RECEIVED": "queued",
-    "STARTED": "processing",
-    "SUCCESS": "done",
-    "FAILURE": "failed",
-    "RETRY": "retrying",
-    "REVOKED": "revoked",
-}
 
 
 router = APIRouter(
@@ -41,19 +28,9 @@ def _create_task_response(
         task_id=job_id
     )
 
-    task_result = AsyncResult(
-        job_id,
-        app=celery_app
-    )
-
     return {
         "job_id": job_id,
-        "celery_state": task_result.state,
-        "status": CELERY_STATUS_MAP.get(
-            task_result.state,
-            task_result.state
-        ),
-        "status_url": f"/jobs/{job_id}",
+        "status": "queued",
         "input_audio": input_audio if include_input_audio else None
     }
 
@@ -118,18 +95,8 @@ async def upload_transcription(
         task_id=job_id
     )
 
-    task_result = AsyncResult(
-        job_id,
-        app=celery_app
-    )
-
     return {
         "job_id": job_id,
-        "celery_state": task_result.state,
-        "status": CELERY_STATUS_MAP.get(
-            task_result.state,
-            task_result.state
-        ),
-        "status_url": f"/jobs/{job_id}",
+        "status": "queued",
         "input_audio": str(input_audio_path)
     }

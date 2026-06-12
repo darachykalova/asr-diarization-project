@@ -18,7 +18,8 @@ router = APIRouter(
     response_model=CallSearchResponse,
     summary="Search calls",
     description=(
-        "Searches transcript segments using keyword, semantic or hybrid mode. "
+        "Searches transcript segments using keyword or semantic mode. "
+        "Semantic mode combines exact keyword matches with vector similarity. "
         "If job_id is not provided, search runs globally across all processed calls."
     )
 )
@@ -37,8 +38,8 @@ async def search_calls(
         description="Optional speaker label, for example SPEAKER_00."
     ),
     mode: str = Query(
-        "hybrid",
-        description="Search mode: keyword, semantic or hybrid."
+        "semantic",
+        description="Search mode: keyword or semantic."
     ),
     limit: int = Query(
         10,
