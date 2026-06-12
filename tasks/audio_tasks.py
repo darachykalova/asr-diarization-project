@@ -3,7 +3,7 @@ from uuid import uuid4
 from typing import Optional
 
 from services.worker_job_service import WorkerJobService
-from celery_app import celery_app
+from celery_app.app import celery_app
 
 
 @celery_app.task(name="process_audio_task")

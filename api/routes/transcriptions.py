@@ -5,7 +5,7 @@ from fastapi import APIRouter, File, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from schemas.api.transcription_schema import TranscriptionTaskResponse
-from tasks import process_audio_task
+from tasks.audio_tasks import process_audio_task
 
 
 router = APIRouter(

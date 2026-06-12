@@ -2,7 +2,7 @@ from celery.result import AsyncResult
 from fastapi import APIRouter
 from starlette.concurrency import run_in_threadpool
 
-from celery_app import celery_app
+from celery_app.app import celery_app
 from schemas.api.job_schema import JobStatusResponse
 
 

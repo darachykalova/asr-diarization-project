@@ -1,6 +1,12 @@
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+class SearchMode(str, Enum):
+    KEYWORD = "keyword"
+    SEMANTIC = "semantic"
 
 
 class CallSegmentResponse(BaseModel):
@@ -95,10 +101,9 @@ class CallSearchResponse(BaseModel):
         None,
         description="Optional speaker filter."
     )
-    mode: str = Field(
+    mode: SearchMode = Field(
         ...,
-        min_length=1,
-        description="Search mode: keyword or semantic."
+        description="Search mode."
     )
     limit: int = Field(
         ...,
