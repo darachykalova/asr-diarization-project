@@ -1,10 +1,7 @@
-import json
-from pathlib import Path
-
 from fastapi import APIRouter, HTTPException
 from starlette.concurrency import run_in_threadpool
 
-from schemas.api.transcript_response_schema import TranscriptResponse
+from database.repository import TranscriptRepository
 
 
 router = APIRouter(
@@ -13,37 +10,26 @@ router = APIRouter(
 )
 
 
-def _load_transcript_json(
-    transcript_path: Path
-) -> dict:
-    with open(
-        transcript_path,
-        "r",
-        encoding="utf-8"
-    ) as file:
-        return json.load(file)
+def _get_transcript_from_postgres(job_id: str) -> dict | None:
+    repository = TranscriptRepository()
+    return repository.get_transcript_by_job_id(job_id)
 
 
 @router.get(
     "/{job_id}",
-    response_model=TranscriptResponse,
     summary="Get transcript result",
-    description="Returns transcript JSON generated for a completed job."
+    description="Returns transcript result from Postgres by job ID."
 )
 async def get_transcript(job_id: str):
-    transcript_path = (
-        Path("data/output/jobs")
-        / job_id
-        / "transcript.json"
+    transcript = await run_in_threadpool(
+        _get_transcript_from_postgres,
+        job_id
     )
 
-    if not transcript_path.exists():
+    if transcript is None:
         raise HTTPException(
             status_code=404,
             detail=f"Transcript not found for job: {job_id}"
         )
 
-    return await run_in_threadpool(
-        _load_transcript_json,
-        transcript_path
-    )
+    return transcript
