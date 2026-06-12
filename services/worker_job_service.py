@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from database.repository import TranscriptRepository
 from services.pipeline_service import PipelineService
 from services.logging_service import setup_logger
 from services.qdrant_service import QdrantService
@@ -11,12 +12,15 @@ class WorkerJobService:
     """
     Service that runs one audio processing worker job.
 
-    Important:
-    Job status is not saved to job_status.json anymore.
     Task status is managed by Celery backend.
 
-    Qdrant is optional:
-    if Qdrant fails, the main ASR pipeline still finishes successfully.
+    Transcript result is saved to:
+    1. transcript.json
+    2. Postgres
+    3. Qdrant segments collection
+
+    Qdrant and Postgres are optional:
+    if saving to them fails, the main ASR pipeline still finishes successfully.
     """
 
     def __init__(
@@ -28,6 +32,7 @@ class WorkerJobService:
         self.model_size = model_size
         self.language = language
         self.logger = setup_logger(log_file=log_file)
+        self.transcript_repository = TranscriptRepository()
 
     def run_job(
         self,
@@ -71,15 +76,42 @@ class WorkerJobService:
 
             return run_result
 
-        self._save_segments_to_qdrant_safely(
+        self._save_transcript_to_postgres_safely(
             job_id=job_id,
             run_result=run_result
         )
+
+        #self._save_segments_to_qdrant_safely(
+        #    job_id=job_id,
+        #    run_result=run_result
+        #)
 
         self.logger.info("Job %s finished successfully", job_id)
         self.logger.info("Transcript result saved to: %s", output_json_path)
 
         return run_result
+
+    def _save_transcript_to_postgres_safely(
+        self,
+        job_id: str,
+        run_result
+    ) -> None:
+        try:
+            self.transcript_repository.save_pipeline_result(
+                run_result=run_result
+            )
+
+            self.logger.info(
+                "Job %s transcript saved to Postgres",
+                job_id
+            )
+
+        except Exception as error:
+            self.logger.warning(
+                "Job %s Postgres optional save failed: %s",
+                job_id,
+                error
+            )
 
     def _save_segments_to_qdrant_safely(
         self,

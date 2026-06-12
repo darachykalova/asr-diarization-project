@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from starlette.concurrency import run_in_threadpool
 
 from api.routes import api_router
+from database.init_db import init_db
 
 
 logging.basicConfig(
@@ -23,15 +24,17 @@ app = FastAPI(
 
 
 @app.on_event("startup")
-async def warmup_models():
-    from services.text_embedding_service import TextEmbeddingService
-
+async def startup():
     logger = logging.getLogger(__name__)
 
+    logger.info("Initializing database tables...")
+    await run_in_threadpool(init_db)
+    logger.info("Database tables initialized.")
+
+    from services.text_embedding_service import TextEmbeddingService
+
     logger.info("Preloading SentenceTransformer model...")
-
     await run_in_threadpool(TextEmbeddingService)
-
     logger.info("SentenceTransformer model loaded.")
 
 
