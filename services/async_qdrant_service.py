@@ -3,11 +3,7 @@ import os
 import re
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import (
-    FieldCondition,
-    Filter,
-    MatchValue,
-)
+from qdrant_client.models import FieldCondition, Filter, MatchValue
 from starlette.concurrency import run_in_threadpool
 
 
@@ -91,13 +87,13 @@ class AsyncQdrantService:
         query: str,
         job_id: str | None = None,
         speaker: str | None = None,
-        mode: str = "hybrid",
+        mode: str = "semantic",
         limit: int = DEFAULT_LIMIT
     ) -> list[dict]:
         normalized_mode = mode.lower().strip()
 
-        if normalized_mode not in {"keyword", "semantic", "hybrid"}:
-            normalized_mode = "hybrid"
+        if normalized_mode not in {"keyword", "semantic"}:
+            normalized_mode = "semantic"
 
         if normalized_mode == "keyword":
             return await self.keyword_search(
@@ -107,15 +103,7 @@ class AsyncQdrantService:
                 limit=limit
             )
 
-        if normalized_mode == "semantic":
-            return await self.semantic_search(
-                query=query,
-                job_id=job_id,
-                speaker=speaker,
-                limit=limit
-            )
-
-        return await self.hybrid_search(
+        return await self.semantic_search(
             query=query,
             job_id=job_id,
             speaker=speaker,
@@ -155,26 +143,19 @@ class AsyncQdrantService:
                 ):
                     continue
 
-                text = payload.get("text", "")
-                text_lower = text.lower()
-                text_words = self._tokenize(text_lower)
+                keyword_score = self._calculate_keyword_score(
+                    query_clean=query_clean,
+                    query_words=query_words,
+                    text=payload.get("text", "")
+                )
 
-                score = 0.0
-
-                if query_clean and query_clean in text_lower:
-                    score += 1.0
-
-                if query_words:
-                    matched_words = query_words.intersection(text_words)
-                    score += len(matched_words) / len(query_words)
-
-                if score <= 0:
+                if keyword_score <= 0:
                     continue
 
                 results.append(
                     self._build_result_item(
                         payload=payload,
-                        score=round(score, 4),
+                        score=round(keyword_score, 4),
                         score_type="keyword"
                     )
                 )
@@ -191,6 +172,101 @@ class AsyncQdrantService:
             return []
 
     async def semantic_search(
+        self,
+        query: str,
+        job_id: str | None = None,
+        speaker: str | None = None,
+        limit: int = DEFAULT_LIMIT
+    ) -> list[dict]:
+        """
+        Smart semantic search.
+
+        It combines:
+        - exact keyword matches
+        - vector similarity matches
+
+        Publicly this is exposed as one semantic search mode.
+        """
+
+        keyword_results = await self.keyword_search(
+            query=query,
+            job_id=job_id,
+            speaker=speaker,
+            limit=50
+        )
+
+        vector_results = await self._vector_search(
+            query=query,
+            job_id=job_id,
+            speaker=speaker,
+            limit=50
+        )
+
+        merged = {}
+
+        for item in vector_results:
+            key = self._result_key(item)
+            merged[key] = item
+            merged[key]["keyword_score"] = 0.0
+            merged[key]["semantic_score"] = item["score"]
+
+        for item in keyword_results:
+            key = self._result_key(item)
+
+            if key not in merged:
+                merged[key] = item
+                merged[key]["semantic_score"] = 0.0
+                merged[key]["keyword_score"] = item["score"]
+            else:
+                merged[key]["keyword_score"] = item["score"]
+
+        query_clean = query.lower().strip()
+        query_words = self._tokenize(query_clean)
+
+        final_results = []
+
+        for item in merged.values():
+            text = item.get("text", "")
+            text_lower = text.lower()
+            text_words = self._tokenize(text_lower)
+
+            semantic_score = float(item.get("semantic_score", 0.0))
+            keyword_score = float(item.get("keyword_score", 0.0))
+
+            exact_phrase_bonus = 0.0
+            word_match_bonus = 0.0
+
+            if query_clean and query_clean in text_lower:
+                exact_phrase_bonus = 0.5
+
+            if query_words:
+                matched_words = query_words.intersection(text_words)
+                word_match_bonus = 0.25 * (
+                    len(matched_words) / len(query_words)
+                )
+
+            final_score = (
+                semantic_score * 0.7
+                + keyword_score * 0.8
+                + exact_phrase_bonus
+                + word_match_bonus
+            )
+
+            item["score"] = round(final_score, 4)
+            item["score_type"] = "semantic"
+            item["semantic_score"] = round(semantic_score, 4)
+            item["keyword_score"] = round(keyword_score, 4)
+
+            final_results.append(item)
+
+        final_results.sort(
+            key=lambda item: item["score"],
+            reverse=True
+        )
+
+        return final_results[:limit]
+
+    async def _vector_search(
         self,
         query: str,
         job_id: str | None = None,
@@ -255,93 +331,28 @@ class AsyncQdrantService:
             return results[:limit]
 
         except Exception:
-            logger.exception("Async Qdrant semantic search failed")
+            logger.exception("Async Qdrant vector search failed")
             return []
 
-    async def hybrid_search(
+    def _calculate_keyword_score(
         self,
-        query: str,
-        job_id: str | None = None,
-        speaker: str | None = None,
-        limit: int = DEFAULT_LIMIT
-    ) -> list[dict]:
-        keyword_results = await self.keyword_search(
-            query=query,
-            job_id=job_id,
-            speaker=speaker,
-            limit=50
-        )
+        query_clean: str,
+        query_words: set[str],
+        text: str
+    ) -> float:
+        text_lower = text.lower()
+        text_words = self._tokenize(text_lower)
 
-        semantic_results = await self.semantic_search(
-            query=query,
-            job_id=job_id,
-            speaker=speaker,
-            limit=50
-        )
+        score = 0.0
 
-        merged = {}
+        if query_clean and query_clean in text_lower:
+            score += 1.0
 
-        for item in semantic_results:
-            key = self._result_key(item)
-            merged[key] = item
-            merged[key]["keyword_score"] = 0.0
-            merged[key]["semantic_score"] = item["score"]
+        if query_words:
+            matched_words = query_words.intersection(text_words)
+            score += len(matched_words) / len(query_words)
 
-        for item in keyword_results:
-            key = self._result_key(item)
-
-            if key not in merged:
-                merged[key] = item
-                merged[key]["semantic_score"] = 0.0
-                merged[key]["keyword_score"] = item["score"]
-            else:
-                merged[key]["keyword_score"] = item["score"]
-
-        query_clean = query.lower().strip()
-        query_words = self._tokenize(query_clean)
-
-        final_results = []
-
-        for item in merged.values():
-            text = item.get("text", "")
-            text_lower = text.lower()
-            text_words = self._tokenize(text_lower)
-
-            semantic_score = float(item.get("semantic_score", 0.0))
-            keyword_score = float(item.get("keyword_score", 0.0))
-
-            exact_phrase_bonus = 0.0
-            word_match_bonus = 0.0
-
-            if query_clean and query_clean in text_lower:
-                exact_phrase_bonus = 0.5
-
-            if query_words:
-                matched_words = query_words.intersection(text_words)
-                word_match_bonus = 0.25 * (
-                    len(matched_words) / len(query_words)
-                )
-
-            final_score = (
-                semantic_score * 0.7
-                + keyword_score * 0.8
-                + exact_phrase_bonus
-                + word_match_bonus
-            )
-
-            item["score"] = round(final_score, 4)
-            item["score_type"] = "hybrid"
-            item["semantic_score"] = round(semantic_score, 4)
-            item["keyword_score"] = round(keyword_score, 4)
-
-            final_results.append(item)
-
-        final_results.sort(
-            key=lambda item: item["score"],
-            reverse=True
-        )
-
-        return final_results[:limit]
+        return score
 
     def _build_qdrant_filter(
         self,
