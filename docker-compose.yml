@@ -23,6 +23,19 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
+  minio:
+    image: minio/minio
+    container_name: asr-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin12345
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
   api:
     build: .
     ports:
@@ -33,12 +46,18 @@ services:
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
       DATABASE_URL: postgresql+psycopg://asr_user:asr_password@postgres:5432/asr_db
+      WEBHOOK_SECRET: your-secret-key-change-in-production
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: admin12345
+      MINIO_BUCKET: audio-files
     volumes:
       - ./data:/app/data
     depends_on:
       - redis
       - postgres
       - qdrant
+      - minio
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
 
   worker:
@@ -49,14 +68,21 @@ services:
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
       DATABASE_URL: postgresql+psycopg://asr_user:asr_password@postgres:5432/asr_db
+      WEBHOOK_SECRET: your-secret-key-change-in-production
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: admin12345
+      MINIO_BUCKET: audio-files
     volumes:
       - ./data:/app/data
     depends_on:
       - redis
       - postgres
       - qdrant
+      - minio
     command: python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=solo
 
 volumes:
-  qdrant_data:
   postgres_data:
+  qdrant_data:
+  minio_data:

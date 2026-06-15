@@ -1,7 +1,8 @@
 from celery.result import AsyncResult
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from starlette.concurrency import run_in_threadpool
 
+from api.auth import require_scope
 from celery_app.app import celery_app
 from schemas.api.job_schema import JobStatusResponse
 
@@ -52,7 +53,8 @@ def _build_job_status_response(
     "/{job_id}",
     response_model=JobStatusResponse,
     summary="Get job status",
-    description="Returns simplified processing status for a background task."
+    description="Returns simplified processing status for a background task.",
+    dependencies=[Depends(require_scope("read"))]
 )
 async def get_job_status(job_id: str):
     return await run_in_threadpool(

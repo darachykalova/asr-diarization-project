@@ -1,8 +1,9 @@
 from enum import Enum
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from starlette.concurrency import run_in_threadpool
 
+from api.auth import require_scope
 from database.repository import TranscriptRepository
 from schemas.api.call_schema import (
     CallSearchResponse,
@@ -30,7 +31,8 @@ router = APIRouter(
     description=(
         "Keyword search uses Postgres. "
         "Semantic search uses Qdrant."
-    )
+    ),
+    dependencies=[Depends(require_scope("read"))]
 )
 async def search_calls(
     query: str = Query(..., min_length=1),
@@ -83,7 +85,8 @@ def _get_call_segments_from_postgres(job_id: str) -> list[dict]:
     "/{job_id}",
     response_model=CallSegmentsResponse,
     summary="Get call by job ID",
-    description="Returns transcript segments from Postgres for one processed call."
+    description="Returns transcript segments from Postgres for one processed call.",
+    dependencies=[Depends(require_scope("read"))]
 )
 async def get_call_by_job_id(job_id: str):
     segments = await run_in_threadpool(
@@ -109,7 +112,8 @@ def _reindex_call_to_qdrant(job_id: str) -> dict:
 @router.post(
     "/reindex/{job_id}",
     summary="Reindex call to Qdrant",
-    description="Loads transcript segments from Postgres and saves them to Qdrant for semantic search."
+    description="Loads transcript segments from Postgres and saves them to Qdrant for semantic search.",
+    dependencies=[Depends(require_scope("write"))]
 )
 async def reindex_call(job_id: str):
     return await run_in_threadpool(

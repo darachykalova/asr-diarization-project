@@ -16,6 +16,25 @@ class SpeakerCreate(BaseModel):
     )
 
 
+class SpeakerUpdate(BaseModel):
+    name: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="New speaker name."
+    )
+    phone: Optional[str] = Field(
+        None,
+        description="New speaker phone number."
+    )
+
+
+class SpeakerMergeRequest(BaseModel):
+    target_speaker_id: int = Field(
+        ...,
+        description="Speaker ID that will remain after merge."
+    )
+
+
 class SpeakerResponse(BaseModel):
     id: int
     name: str
@@ -36,3 +55,13 @@ class RecordingResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+
+class SpeakerDeleteResponse(BaseModel):
+    message: str
+
+
+class SpeakerMergeResponse(BaseModel):
+    message: str
+    source_speaker_id: int
+    target_speaker_id: int
