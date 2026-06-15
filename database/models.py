@@ -38,3 +38,36 @@ class TranscriptSegment(Base):
         "Transcript",
         back_populates="segments"
     )
+
+
+class Speaker(Base):
+    __tablename__ = "speakers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    recordings = relationship(
+        "Recording",
+        back_populates="speaker",
+        cascade="all, delete-orphan"
+    )
+
+
+class Recording(Base):
+    __tablename__ = "recordings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    speaker_id: Mapped[int | None] = mapped_column(
+        ForeignKey("speakers.id"),
+        nullable=True
+    )
+    filename: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    speaker = relationship(
+        "Speaker",
+        back_populates="recordings"
+    )

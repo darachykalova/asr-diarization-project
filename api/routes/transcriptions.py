@@ -1,9 +1,12 @@
 from pathlib import Path
+from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 
+from database import crud
+from database.session import SessionLocal
 from schemas.api.transcription_schema import TranscriptionTaskResponse
 from tasks.audio_tasks import process_audio_task
 
@@ -48,6 +51,36 @@ def _save_uploaded_file(
         output_file.write(content)
 
 
+def _create_recording_in_database(
+    job_id: str,
+    filename: str,
+    speaker_id: Optional[int]
+) -> None:
+    db = SessionLocal()
+
+    try:
+        if speaker_id is not None:
+            speaker = crud.get_speaker(
+                db=db,
+                speaker_id=speaker_id
+            )
+
+            if speaker is None:
+                raise ValueError(
+                    f"Speaker not found: {speaker_id}"
+                )
+
+        crud.create_recording(
+            db=db,
+            job_id=job_id,
+            filename=filename,
+            speaker_id=speaker_id
+        )
+
+    finally:
+        db.close()
+
+
 @router.post(
     "",
     response_model=TranscriptionTaskResponse,
@@ -72,7 +105,8 @@ async def upload_transcription(
     file: UploadFile = File(
         ...,
         description="Audio file to process."
-    )
+    ),
+    speaker_id: Optional[int] = None
 ):
     job_id = str(uuid4())
 
@@ -86,6 +120,20 @@ async def upload_transcription(
         input_audio_path,
         content
     )
+
+    try:
+        await run_in_threadpool(
+            _create_recording_in_database,
+            job_id,
+            file.filename,
+            speaker_id
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error)
+        ) from error
 
     process_audio_task.apply_async(
         kwargs={
