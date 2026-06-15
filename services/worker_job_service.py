@@ -81,10 +81,10 @@ class WorkerJobService:
             run_result=run_result
         )
 
-        #self._save_segments_to_qdrant_safely(
-        #    job_id=job_id,
-        #    run_result=run_result
-        #)
+        self._save_segments_to_qdrant_safely(
+            job_id=job_id,
+            run_result=run_result
+        )
 
         self.logger.info("Job %s finished successfully", job_id)
         self.logger.info("Transcript result saved to: %s", output_json_path)
