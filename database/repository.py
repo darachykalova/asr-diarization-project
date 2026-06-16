@@ -12,9 +12,9 @@ class TranscriptRepository:
     Repository for saving, reading and deleting transcript results from Postgres.
     """
 
-    def save_pipeline_result(self, run_result) -> None:
+    def save_pipeline_result(self, run_result) -> int | None:
         if run_result.transcript is None:
-            return
+            return None
 
         db = SessionLocal()
 
@@ -44,6 +44,7 @@ class TranscriptRepository:
                     transcript_id=transcript.id,
                     segment_id=segment.id,
                     speaker=segment.speaker,
+                    speaker_id=None,
                     start=segment.start,
                     end=segment.end,
                     text=segment.text
@@ -53,9 +54,32 @@ class TranscriptRepository:
 
             db.commit()
 
+            return transcript.id
+
         except Exception:
             db.rollback()
             raise
+
+        finally:
+            db.close()
+
+    def get_transcript_id_by_job_id(
+        self,
+        job_id: str
+    ) -> int | None:
+        db = SessionLocal()
+
+        try:
+            transcript = (
+                db.query(Transcript)
+                .filter(Transcript.job_id == job_id.strip())
+                .first()
+            )
+
+            if transcript is None:
+                return None
+
+            return transcript.id
 
         finally:
             db.close()
@@ -94,6 +118,7 @@ class TranscriptRepository:
                             "start": segment.start,
                             "end": segment.end,
                             "speaker": segment.speaker,
+                            "speaker_id": segment.speaker_id,
                             "text": segment.text
                         }
                         for segment in segments
@@ -134,6 +159,7 @@ class TranscriptRepository:
                     "job_id": transcript.job_id,
                     "segment_id": segment.segment_id,
                     "speaker": segment.speaker,
+                    "speaker_id": segment.speaker_id,
                     "start": segment.start,
                     "end": segment.end,
                     "text": segment.text,
@@ -203,6 +229,7 @@ class TranscriptRepository:
                     "job_id": transcript.job_id,
                     "segment_id": segment.segment_id,
                     "speaker": segment.speaker,
+                    "speaker_id": segment.speaker_id,
                     "start": segment.start,
                     "end": segment.end,
                     "text": segment.text,

@@ -3,7 +3,13 @@ from math import ceil
 
 from sqlalchemy.orm import Session
 
-from database.models import Job, Occurrence, Recording, Speaker
+from database.models import (
+    Job,
+    Occurrence,
+    Recording,
+    Speaker,
+    TranscriptSegment,
+)
 
 
 def create_speaker(
@@ -15,6 +21,23 @@ def create_speaker(
         name=name,
         phone=phone,
         kind="registered"
+    )
+
+    db.add(speaker)
+    db.commit()
+    db.refresh(speaker)
+
+    return speaker
+
+
+def create_anonymous_speaker(
+    db: Session,
+    name: str = "Unknown speaker"
+) -> Speaker:
+    speaker = Speaker(
+        name=name,
+        phone=None,
+        kind="anonymous"
     )
 
     db.add(speaker)
@@ -156,10 +179,73 @@ def merge_speakers(
         )
     )
 
+    (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.speaker_id == source_speaker_id)
+        .update(
+            {"speaker_id": target_speaker_id},
+            synchronize_session=False
+        )
+    )
+
     db.delete(source_speaker)
     db.commit()
 
     return "merged"
+
+
+def create_occurrence(
+    db: Session,
+    speaker_id: int,
+    transcript_id: int,
+    local_label: str,
+    match_score: float | None = None
+) -> Occurrence:
+    occurrence = Occurrence(
+        speaker_id=speaker_id,
+        transcript_id=transcript_id,
+        local_label=local_label,
+        match_score=match_score
+    )
+
+    db.add(occurrence)
+    db.commit()
+    db.refresh(occurrence)
+
+    return occurrence
+
+
+def get_occurrences_by_speaker(
+    db: Session,
+    speaker_id: int
+) -> list[Occurrence]:
+    return (
+        db.query(Occurrence)
+        .filter(Occurrence.speaker_id == speaker_id)
+        .order_by(Occurrence.id)
+        .all()
+    )
+
+
+def update_segments_speaker_id(
+    db: Session,
+    transcript_id: int,
+    local_label: str,
+    speaker_id: int
+) -> None:
+    (
+        db.query(TranscriptSegment)
+        .filter(
+            TranscriptSegment.transcript_id == transcript_id,
+            TranscriptSegment.speaker == local_label
+        )
+        .update(
+            {"speaker_id": speaker_id},
+            synchronize_session=False
+        )
+    )
+
+    db.commit()
 
 
 def create_recording(

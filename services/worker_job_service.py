@@ -2,27 +2,15 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from database import crud
 from database.repository import TranscriptRepository
-from services.pipeline_service import PipelineService
+from database.session import SessionLocal
 from services.logging_service import setup_logger
+from services.pipeline_service import PipelineService
 from services.qdrant_service import QdrantService
 
 
 class WorkerJobService:
-    """
-    Service that runs one audio processing worker job.
-
-    Task status is managed by Celery backend.
-
-    Transcript result is saved to:
-    1. transcript.json
-    2. Postgres
-    3. Qdrant segments collection
-
-    Qdrant and Postgres are optional:
-    if saving to them fails, the main ASR pipeline still finishes successfully.
-    """
-
     def __init__(
         self,
         model_size: str = "base",
@@ -73,13 +61,19 @@ class WorkerJobService:
         if not run_result.success:
             self.logger.error("Job %s failed: %s", job_id, run_result.error)
             self.logger.info("Error result saved to: %s", output_json_path)
-
             return run_result
 
-        self._save_transcript_to_postgres_safely(
+        transcript_id = self._save_transcript_to_postgres_safely(
             job_id=job_id,
             run_result=run_result
         )
+
+        if transcript_id is not None:
+            self._assign_anonymous_speakers_safely(
+                job_id=job_id,
+                transcript_id=transcript_id,
+                run_result=run_result
+            )
 
         self._save_segments_to_qdrant_safely(
             job_id=job_id,
@@ -95,20 +89,84 @@ class WorkerJobService:
         self,
         job_id: str,
         run_result
-    ) -> None:
+    ) -> int | None:
         try:
-            self.transcript_repository.save_pipeline_result(
+            transcript_id = self.transcript_repository.save_pipeline_result(
                 run_result=run_result
             )
 
             self.logger.info(
-                "Job %s transcript saved to Postgres",
-                job_id
+                "Job %s transcript saved to Postgres with transcript_id=%s",
+                job_id,
+                transcript_id
             )
+
+            return transcript_id
 
         except Exception as error:
             self.logger.warning(
                 "Job %s Postgres optional save failed: %s",
+                job_id,
+                error
+            )
+            return None
+
+    def _assign_anonymous_speakers_safely(
+        self,
+        job_id: str,
+        transcript_id: int,
+        run_result
+    ) -> None:
+        try:
+            if run_result.transcript is None:
+                return
+
+            labels = sorted({
+                segment.speaker
+                for segment in run_result.transcript.segments
+                if segment.speaker
+            })
+
+            if not labels:
+                return
+
+            db = SessionLocal()
+
+            try:
+                for local_label in labels:
+                    speaker = crud.create_anonymous_speaker(
+                        db=db,
+                        name=f"Unknown speaker {local_label}"
+                    )
+
+                    crud.create_occurrence(
+                        db=db,
+                        speaker_id=speaker.id,
+                        transcript_id=transcript_id,
+                        local_label=local_label,
+                        match_score=None
+                    )
+
+                    crud.update_segments_speaker_id(
+                        db=db,
+                        transcript_id=transcript_id,
+                        local_label=local_label,
+                        speaker_id=speaker.id
+                    )
+
+                    self.logger.info(
+                        "Job %s: assigned %s to anonymous speaker_id=%s",
+                        job_id,
+                        local_label,
+                        speaker.id
+                    )
+
+            finally:
+                db.close()
+
+        except Exception as error:
+            self.logger.warning(
+                "Job %s anonymous speaker assignment failed: %s",
                 job_id,
                 error
             )

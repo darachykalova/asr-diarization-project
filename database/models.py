@@ -108,7 +108,14 @@ class TranscriptSegment(Base):
     )
 
     segment_id: Mapped[int] = mapped_column(Integer)
+
     speaker: Mapped[str] = mapped_column(String(50))
+
+    speaker_id: Mapped[int | None] = mapped_column(
+        ForeignKey("speakers.id"),
+        nullable=True
+    )
+
     start: Mapped[float] = mapped_column(Float)
     end: Mapped[float] = mapped_column(Float)
     text: Mapped[str] = mapped_column(Text)
@@ -126,6 +133,10 @@ class TranscriptSegment(Base):
     transcript = relationship(
         "Transcript",
         back_populates="segments"
+    )
+
+    speaker_ref = relationship(
+        "Speaker"
     )
 
 
