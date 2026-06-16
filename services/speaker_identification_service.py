@@ -11,10 +11,8 @@ from qdrant_client.models import (
 
 class SpeakerIdentificationService:
     COLLECTION_NAME = "speaker_voices"
-
-    VECTOR_SIZE = 192
-
-    MATCH_THRESHOLD = 0.75
+    VECTOR_SIZE = 512
+    MATCH_THRESHOLD = 0.90
 
     def __init__(self):
         self.client = QdrantClient(
@@ -24,7 +22,7 @@ class SpeakerIdentificationService:
 
         self._ensure_collection()
 
-    def _ensure_collection(self):
+    def _ensure_collection(self) -> None:
         collections = self.client.get_collections()
 
         existing = {
@@ -45,38 +43,50 @@ class SpeakerIdentificationService:
 
     def find_speaker(
         self,
-        embedding: list[float]
+        embedding: list[float],
+        excluded_speaker_ids: set[int] | None = None
     ) -> tuple[int | None, float | None]:
+        if excluded_speaker_ids is None:
+            excluded_speaker_ids = set()
 
         result = self.client.query_points(
             collection_name=self.COLLECTION_NAME,
             query=embedding,
-            limit=1,
-            with_payload=True
+            limit=5,
+            with_payload=True,
+            with_vectors=False
         )
 
         if not result.points:
             return None, None
 
-        point = result.points[0]
+        best_score = None
 
-        score = float(point.score)
+        for point in result.points:
+            score = float(point.score)
+            best_score = score if best_score is None else max(best_score, score)
 
-        if score < self.MATCH_THRESHOLD:
-            return None, score
+            payload = point.payload or {}
+            speaker_id = payload.get("speaker_id")
 
-        speaker_id = point.payload.get(
-            "speaker_id"
-        )
+            if speaker_id is None:
+                continue
 
-        return int(speaker_id), score
+            speaker_id = int(speaker_id)
+
+            if speaker_id in excluded_speaker_ids:
+                continue
+
+            if score >= self.MATCH_THRESHOLD:
+                return speaker_id, score
+
+        return None, best_score
 
     def save_embedding(
         self,
         speaker_id: int,
         embedding: list[float]
     ) -> None:
-
         point_id = str(
             uuid.uuid5(
                 uuid.NAMESPACE_DNS,
@@ -101,7 +111,6 @@ class SpeakerIdentificationService:
         self,
         speaker_id: int
     ) -> None:
-
         point_id = str(
             uuid.uuid5(
                 uuid.NAMESPACE_DNS,
