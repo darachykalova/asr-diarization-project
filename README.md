@@ -12,8 +12,10 @@ This project is an asynchronous audio processing platform that provides:
 * Hybrid Search
 * Vector Storage using Qdrant
 * Background Processing using Celery
+* Cross-call Speaker Voice Matching
+* API Key Authentication
 
-The service allows users to upload audio files, automatically generate speaker-attributed transcripts, store transcript segments in a vector database, and perform semantic retrieval across processed conversations.
+The service allows users to upload audio files, automatically generate speaker-attributed transcripts, store transcript segments in a vector database, and perform semantic retrieval across processed conversations. It also recognizes the same speaker across multiple calls using voice embeddings.
 
 ---
 
@@ -24,7 +26,8 @@ The service allows users to upload audio files, automatically generate speaker-a
 * Audio file upload via REST API
 * Background task execution using Celery
 * Processing status tracking
-* Transcript persistence
+* Transcript persistence in PostgreSQL
+* Audio storage in MinIO
 
 ## Speech Recognition
 
@@ -62,6 +65,35 @@ Capabilities:
 
 ---
 
+## Speaker Voice Matching
+
+The service supports speaker identification across multiple processed calls.
+
+After diarization, local speaker labels such as `SPEAKER_00` and `SPEAKER_01` are processed independently.
+
+The workflow is:
+
+1. extract the longest speech segment for each local speaker;
+2. generate a 512-dimensional voice embedding;
+3. search the `speaker_voices` collection in Qdrant;
+4. match an existing speaker if similarity is high enough;
+5. create a new anonymous speaker if no match is found;
+6. store the speaker occurrence in PostgreSQL;
+7. update transcript segments with the resolved `speaker_id`.
+
+Current configuration:
+
+```python
+VECTOR_SIZE = 512
+MATCH_THRESHOLD = 0.90
+```
+
+To avoid incorrect merging, the system excludes speakers already assigned inside the same call from the next local speaker matching attempt.
+
+The current local Windows implementation avoids the TorchCodec dependency and uses a stable waveform-based embedding extraction approach.
+
+---
+
 ## Semantic Search
 
 Powered by:
@@ -88,24 +120,44 @@ Capabilities:
 # Architecture
 
 ```text
-Client
-   |
-   v
-FastAPI
-   |
-   v
-Redis
-   |
-   v
-Celery Worker
-   |
-   +--> Faster Whisper
-   |
-   +--> Pyannote Diarization
-   |
-   +--> Sentence Transformers
-   |
-   +--> Qdrant
+                        +----------------+
+                        |     Client     |
+                        +-------+--------+
+                                |
+                                v
+                        +----------------+
+                        |    FastAPI     |
+                        +-------+--------+
+                                |
+        +-----------------------+-----------------------+
+        |                       |                       |
+        v                       v                       v
++---------------+       +---------------+       +---------------+
+|  PostgreSQL   |       |     MinIO     |       |     Redis     |
+| Metadata DB   |       | Audio Storage |       | Task Broker   |
++---------------+       +---------------+       +-------+-------+
+                                                        |
+                                                        v
+                                                +---------------+
+                                                | Celery Worker |
+                                                +-------+-------+
+                                                        |
+        +-----------------------+-----------------------+-----------------------+
+        |                       |                       |                       |
+        v                       v                       v                       v
++---------------+       +---------------+       +---------------+       +---------------+
+| Faster-Whisper|       |   PyAnnote    |       | Sentence      |       | Voice         |
+| ASR           |       | Diarization   |       | Transformers  |       | Matching      |
++---------------+       +---------------+       +---------------+       +---------------+
+        |                       |                       |                       |
+        +-----------------------+-----------------------+-----------------------+
+                                |
+                                v
+                        +---------------+
+                        |    Qdrant     |
+                        | Text + Voice  |
+                        | Vectors       |
+                        +---------------+
 ```
 
 ---
@@ -114,36 +166,48 @@ Celery Worker
 
 ```text
 api/
+├── auth.py
 ├── main.py
-├── routes/
-│   ├── calls.py
-│   ├── health.py
-│   ├── jobs.py
-│   ├── transcripts.py
-│   └── transcriptions.py
+└── routes/
+
+database/
+├── crud.py
+├── database.py
+├── init_db.py
+├── models.py
+├── repository.py
+└── session.py
 
 schemas/
 ├── transcript_schema.py
 └── api/
-    ├── call_schema.py
-    ├── job_schema.py
-    └── transcription_schema.py
 
 services/
+├── alignment_service.py
 ├── asr_service.py
+├── audio_segment_extractor.py
+├── audio_service.py
 ├── diarization_service.py
+├── embedding_service.py
 ├── pipeline_service.py
 ├── qdrant_service.py
+├── reindex_service.py
+├── speaker_identification_service.py
 ├── text_embedding_service.py
+├── vad_service.py
+├── voice_embedding_service.py
+├── webhook_service.py
 └── worker_job_service.py
+
+tasks/
+├── audio_tasks.py
 
 data/
 ├── input/
-└── output/
+├── normalized/
+├── output/
+└── temp_voice/
 
-celery_app.py
-tasks.py
-Dockerfile
 docker-compose.yml
 requirements.txt
 README.md
@@ -168,6 +232,16 @@ README.md
 
 * Qdrant
 * Sentence Transformers
+
+## Database and Storage
+
+* PostgreSQL
+* MinIO
+
+## Authentication
+
+* API Key authentication
+* Bearer token authorization
 
 ## Background Processing
 
@@ -214,24 +288,41 @@ pip install -r requirements.txt
 
 # Infrastructure Setup
 
-Start Redis and Qdrant:
+Start all infrastructure services:
 
 ```bash
 docker compose up -d
 ```
 
+The project uses:
+
+* PostgreSQL — metadata storage
+* Redis — Celery broker
+* Qdrant — vector database
+* MinIO — object storage
+
 Verify services:
 
-Qdrant Dashboard:
+```bash
+docker ps
+```
+
+Qdrant:
 
 ```text
 http://localhost:6333/dashboard
 ```
 
-Redis:
+MinIO Console:
 
 ```text
-localhost:6379
+http://localhost:9001
+```
+
+PostgreSQL:
+
+```bash
+docker exec -it asr_diarization_project-postgres-1 psql -U asr_user -d asr_db
 ```
 
 ---
@@ -251,6 +342,10 @@ The token must have access to:
 * pyannote/speaker-diarization-3.1
 * pyannote/segmentation-3.0
 
+The token is required for PyAnnote diarization models.
+
+Voice matching in the current Windows-compatible local implementation does not require TorchCodec.
+
 ---
 
 # Running the Application
@@ -258,7 +353,7 @@ The token must have access to:
 ## Start Celery Worker
 
 ```bash
-python -m celery -A tasks worker --loglevel=info --pool=solo --concurrency=1
+celery -A tasks.audio_tasks worker --loglevel=info --pool=solo
 ```
 
 ## Start FastAPI
@@ -286,7 +381,7 @@ docker compose up -d
 ```powershell
 $env:HF_TOKEN="your_hugging_face_token"
 
-python -m celery -A tasks worker --loglevel=info --pool=solo
+celery -A tasks.audio_tasks worker --loglevel=info --pool=solo
 ```
 
 ### Terminal 3 — FastAPI
@@ -321,6 +416,28 @@ http://127.0.0.1:8000/docs
 
 ---
 
+# API Authentication
+
+Protected endpoints require an API key.
+
+Authorization format:
+
+```http
+Authorization: Bearer <api_key>
+```
+
+API keys are stored in PostgreSQL.
+
+A helper script can be used to create API keys:
+
+```bash
+python scripts/create_api_key.py
+```
+
+Use the generated raw key only once and store it safely.
+
+---
+
 # API Endpoints
 
 ## Health
@@ -332,27 +449,44 @@ GET /
 ## Transcriptions
 
 ```http
-POST /transcriptions
-POST /transcriptions/upload
+POST /v1/transcriptions/upload
 ```
 
 ## Jobs
 
 ```http
-GET /jobs/{job_id}
+GET /v1/jobs/{job_id}
 ```
 
 ## Transcripts
 
 ```http
-GET /transcripts/{job_id}
+GET /v1/transcripts/{job_id}
+DELETE /v1/transcripts/{job_id}
 ```
 
 ## Calls
 
 ```http
-GET /calls/{job_id}
-GET /calls/search
+GET /v1/calls/{job_id}
+GET /v1/calls/search
+```
+
+## Speakers
+
+```http
+GET /v1/speakers
+POST /v1/speakers
+PATCH /v1/speakers/{speaker_id}
+DELETE /v1/speakers/{speaker_id}
+```
+
+## API Keys
+
+```http
+POST /v1/api-keys
+GET /v1/api-keys
+DELETE /v1/api-keys/{key_id}
 ```
 
 ---
@@ -360,13 +494,15 @@ GET /calls/search
 # Processing Workflow
 
 1. Upload audio file.
-2. Create processing task.
-3. Execute transcription.
-4. Execute speaker diarization.
-5. Align speakers with transcript segments.
-6. Generate embeddings.
-7. Store transcript segments in Qdrant.
-8. Return transcript and search availability.
+2. Store audio in MinIO and create job record.
+3. Create processing task.
+4. Execute transcription.
+5. Execute speaker diarization.
+6. Align speakers with transcript segments.
+7. Generate text embeddings.
+8. Extract voice embeddings and resolve speaker identity.
+9. Store transcript segments in Qdrant.
+10. Return transcript and search availability.
 
 ---
 
@@ -440,12 +576,21 @@ job_id = <job_uuid>
 
 For every processed job the system stores:
 
-```text
-transcript.json
-job_status.json
-```
+* uploaded audio in MinIO
+* normalized audio
+* transcript JSON
+* job status in PostgreSQL
+* transcript segments in PostgreSQL
+* transcript vectors in Qdrant
+* speaker occurrences in PostgreSQL
+* speaker voice vectors in Qdrant
 
-and indexed transcript segments inside Qdrant.
+Main Qdrant collections:
+
+```text
+transcript_segments
+speaker_voices
+```
 
 ---
 
@@ -495,22 +640,83 @@ Possible solutions:
 
 ---
 
+## TorchCodec Error on Windows
+
+If TorchCodec breaks startup or speaker matching, remove it:
+
+```powershell
+pip uninstall torchcodec -y
+```
+
+The local Windows setup uses:
+
+```text
+torch==2.11.0
+torchaudio==2.11.0
+```
+
+Do not install speechbrain or torchcodec for the current local Windows configuration.
+
+## Voice Matching Does Not Match Speakers
+
+Check Celery logs for:
+
+```text
+Voice embedding extracted: dim=512
+matched SPEAKER_00 to speaker_id=...
+```
+
+Check PostgreSQL:
+
+```sql
+SELECT *
+FROM occurrences
+ORDER BY id DESC
+LIMIT 12;
+```
+
+---
+
 # Current Status
 
-The project is fully functional and supports:
+The project is fully functional and currently supports:
 
 * asynchronous audio processing
+* audio upload through REST API
+* MinIO audio object storage
+* PostgreSQL metadata storage
+* Redis-based task queue
+* Celery background processing
 * multilingual speech recognition
+* voice activity detection
 * speaker diarization
 * transcript generation
+* speaker-aware transcript segments
 * semantic search
+* keyword search
 * hybrid search
-* vector storage and retrieval
+* Qdrant vector storage
+* API key authentication
+* transcript deletion
+* pagination for call segments
+* speaker management
+* speaker occurrence tracking
+* cross-call speaker voice matching
+* webhook notifications
 
-Future improvements may include:
+---
 
-* PostgreSQL metadata storage
-* speaker voice embeddings
-* speaker identification across conversations
+# Future Improvements
+
+Potential future improvements:
+
+* speaker profile management UI
+* improved production-grade speaker embedding backend
+* better confidence calibration
 * LLM-based transcript enrichment
-* advanced analytics
+* transcript summarization
+* sentiment analysis
+* conversation analytics dashboards
+* real-time streaming transcription
+* GPU worker scaling
+* advanced monitoring and observability
