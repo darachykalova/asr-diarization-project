@@ -60,3 +60,17 @@ class MinioStorageClient:
         )
 
         return local_path
+
+    def delete_file(
+        self,
+        object_key: str | None
+    ) -> bool:
+        if not object_key:
+            return False
+
+        self.client.remove_object(
+            bucket_name=self.bucket_name,
+            object_name=object_key
+        )
+
+        return True

@@ -1,4 +1,5 @@
 from datetime import datetime
+from math import ceil
 
 from sqlalchemy.orm import Session
 
@@ -42,6 +43,34 @@ def get_all_speakers(
         .order_by(Speaker.id)
         .all()
     )
+
+
+def get_speakers_paginated(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20
+) -> dict:
+    total = db.query(Speaker).count()
+
+    offset = (page - 1) * page_size
+
+    items = (
+        db.query(Speaker)
+        .order_by(Speaker.id)
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+
+    pages = ceil(total / page_size) if total else 0
+
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "pages": pages
+    }
 
 
 def update_speaker(

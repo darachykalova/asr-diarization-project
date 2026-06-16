@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from api.auth import require_scope
@@ -11,6 +11,7 @@ from schemas.api.speaker_schema import (
     SpeakerMergeRequest,
     SpeakerMergeResponse,
     SpeakerResponse,
+    SpeakersPageResponse,
     SpeakerUpdate,
 )
 
@@ -51,16 +52,20 @@ def create_speaker(
 
 @router.get(
     "",
-    response_model=list[SpeakerResponse],
+    response_model=SpeakersPageResponse,
     summary="List speakers",
-    description="Returns all speakers from Postgres.",
+    description="Returns speakers from Postgres with pagination.",
     dependencies=[Depends(require_scope("read"))]
 )
 def list_speakers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    return crud.get_all_speakers(
-        db=db
+    return crud.get_speakers_paginated(
+        db=db,
+        page=page,
+        page_size=page_size
     )
 
 

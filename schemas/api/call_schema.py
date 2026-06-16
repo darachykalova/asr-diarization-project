@@ -81,6 +81,26 @@ class CallSegmentsResponse(BaseModel):
         ge=0,
         description="Number of returned segments."
     )
+    page: int = Field(
+        ...,
+        ge=1,
+        description="Current page."
+    )
+    page_size: int = Field(
+        ...,
+        ge=1,
+        description="Number of items per page."
+    )
+    total: int = Field(
+        ...,
+        ge=0,
+        description="Total number of matching segments."
+    )
+    pages: int = Field(
+        ...,
+        ge=0,
+        description="Total number of pages."
+    )
     segments: list[CallSegmentResponse] = Field(
         default_factory=list,
         description="Transcript segments for one processed call."

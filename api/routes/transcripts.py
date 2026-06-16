@@ -3,7 +3,9 @@ from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import require_scope
+from clients.minio_client import MinioStorageClient
 from database.repository import TranscriptRepository
+from services.qdrant_service import QdrantService
 
 
 router = APIRouter(
@@ -18,6 +20,58 @@ def _get_transcript_from_postgres(job_id: str) -> dict | None:
     return repository.get_transcript_by_job_id(
         job_id=job_id
     )
+
+
+def _delete_transcript_everywhere(
+    job_id: str
+) -> dict:
+    repository = TranscriptRepository()
+    clean_job_id = job_id.strip()
+
+    transcript = repository.get_transcript_by_job_id(
+        job_id=clean_job_id
+    )
+
+    if transcript is None:
+        return {
+            "deleted": False,
+            "reason": "not_found"
+        }
+
+    audio_key = repository.get_audio_key_by_job_id(
+        job_id=clean_job_id
+    )
+
+    minio_deleted = False
+
+    if audio_key:
+        try:
+            minio_client = MinioStorageClient()
+            minio_deleted = minio_client.delete_file(
+                audio_key
+            )
+
+        except Exception:
+            minio_deleted = False
+
+    qdrant_service = QdrantService()
+
+    qdrant_deleted = qdrant_service.delete_job_segments(
+        job_id=clean_job_id
+    )
+
+    postgres_deleted = repository.delete_transcript_by_job_id(
+        job_id=clean_job_id
+    )
+
+    return {
+        "deleted": postgres_deleted,
+        "job_id": clean_job_id,
+        "audio_key": audio_key,
+        "minio_deleted": minio_deleted,
+        "qdrant_deleted": qdrant_deleted,
+        "postgres_deleted": postgres_deleted
+    }
 
 
 def _format_timestamp(
@@ -132,6 +186,37 @@ async def get_transcript(job_id: str):
         )
 
     return transcript
+
+
+@router.delete(
+    "/{job_id}",
+    summary="Delete transcript",
+    description=(
+        "Deletes transcript from Postgres, audio file from MinIO, "
+        "and transcript vectors from Qdrant."
+    ),
+    dependencies=[Depends(require_scope("write"))]
+)
+async def delete_transcript(job_id: str):
+    result = await run_in_threadpool(
+        _delete_transcript_everywhere,
+        job_id
+    )
+
+    if not result.get("deleted"):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Transcript not found for job: {job_id}"
+        )
+
+    return {
+        "message": f"Transcript {job_id.strip()} deleted",
+        "job_id": result["job_id"],
+        "audio_key": result["audio_key"],
+        "minio_deleted": result["minio_deleted"],
+        "qdrant_deleted": result["qdrant_deleted"],
+        "postgres_deleted": result["postgres_deleted"]
+    }
 
 
 @router.get(

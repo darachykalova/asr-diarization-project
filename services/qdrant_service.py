@@ -145,6 +145,34 @@ class QdrantService:
             )
             return False
 
+    def delete_job_segments(
+        self,
+        job_id: str
+    ) -> bool:
+        try:
+            qdrant_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="job_id",
+                        match=MatchValue(value=job_id.strip())
+                    )
+                ]
+            )
+
+            self.client.delete(
+                collection_name=self.COLLECTION_NAME,
+                points_selector=qdrant_filter
+            )
+
+            return True
+
+        except Exception:
+            logger.exception(
+                "Qdrant delete failed for job %s",
+                job_id
+            )
+            return False
+
     def get_segments_by_job_id(
         self,
         job_id: str

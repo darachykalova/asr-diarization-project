@@ -1,10 +1,15 @@
-from database.models import Transcript, TranscriptSegment
+from database.models import (
+    Job,
+    Recording,
+    Transcript,
+    TranscriptSegment,
+)
 from database.session import SessionLocal
 
 
 class TranscriptRepository:
     """
-    Repository for saving and reading transcript results from Postgres.
+    Repository for saving, reading and deleting transcript results from Postgres.
     """
 
     def save_pipeline_result(self, run_result) -> None:
@@ -209,6 +214,78 @@ class TranscriptRepository:
                 }
                 for transcript, segment in rows
             ]
+
+        finally:
+            db.close()
+
+    def get_audio_key_by_job_id(
+        self,
+        job_id: str
+    ) -> str | None:
+        db = SessionLocal()
+
+        try:
+            clean_job_id = job_id.strip()
+
+            job = (
+                db.query(Job)
+                .filter(Job.id == clean_job_id)
+                .first()
+            )
+
+            if job is None:
+                return None
+
+            return job.audio_key
+
+        finally:
+            db.close()
+
+    def delete_transcript_by_job_id(
+        self,
+        job_id: str
+    ) -> bool:
+        db = SessionLocal()
+
+        try:
+            clean_job_id = job_id.strip()
+
+            transcript = (
+                db.query(Transcript)
+                .filter(Transcript.job_id == clean_job_id)
+                .first()
+            )
+
+            if transcript is None:
+                return False
+
+            recording = (
+                db.query(Recording)
+                .filter(Recording.job_id == clean_job_id)
+                .first()
+            )
+
+            if recording is not None:
+                db.delete(recording)
+
+            db.delete(transcript)
+
+            job = (
+                db.query(Job)
+                .filter(Job.id == clean_job_id)
+                .first()
+            )
+
+            if job is not None:
+                db.delete(job)
+
+            db.commit()
+
+            return True
+
+        except Exception:
+            db.rollback()
+            raise
 
         finally:
             db.close()
