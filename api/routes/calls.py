@@ -1,4 +1,5 @@
 from enum import Enum
+from math import ceil
 
 from fastapi import APIRouter, Depends, Query
 from starlette.concurrency import run_in_threadpool
@@ -88,16 +89,42 @@ def _get_call_segments_from_postgres(job_id: str) -> list[dict]:
     description="Returns transcript segments from Postgres for one processed call.",
     dependencies=[Depends(require_scope("read"))]
 )
-async def get_call_by_job_id(job_id: str):
-    segments = await run_in_threadpool(
+async def get_call_by_job_id(
+    job_id: str,
+    speaker: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100)
+):
+    all_segments = await run_in_threadpool(
         _get_call_segments_from_postgres,
         job_id
     )
 
+    clean_speaker = speaker.strip() if speaker else None
+
+    if clean_speaker:
+        all_segments = [
+            segment
+            for segment in all_segments
+            if segment.get("speaker") == clean_speaker
+        ]
+
+    total = len(all_segments)
+    pages = ceil(total / page_size) if total else 0
+    offset = (page - 1) * page_size
+
+    paginated_segments = all_segments[
+        offset:offset + page_size
+    ]
+
     return {
         "job_id": job_id.strip(),
-        "count": len(segments),
-        "segments": segments
+        "count": len(paginated_segments),
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "pages": pages,
+        "segments": paginated_segments
     }
 
 

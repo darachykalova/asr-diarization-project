@@ -32,10 +32,15 @@ async def startup():
     logger.info("Database tables initialized.")
 
     from services.text_embedding_service import TextEmbeddingService
+    from clients.minio_client import MinioStorageClient
 
     logger.info("Preloading SentenceTransformer model...")
     await run_in_threadpool(TextEmbeddingService)
     logger.info("SentenceTransformer model loaded.")
+
+    logger.info("Checking MinIO bucket...")
+    await run_in_threadpool(MinioStorageClient)
+    logger.info("MinIO bucket ready.")
 
 
 app.include_router(api_router)

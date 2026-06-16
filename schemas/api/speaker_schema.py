@@ -46,6 +46,14 @@ class SpeakerResponse(BaseModel):
     }
 
 
+class SpeakersPageResponse(BaseModel):
+    items: list[SpeakerResponse]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+
+
 class RecordingResponse(BaseModel):
     id: int
     job_id: str
