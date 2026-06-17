@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import require_scope
@@ -100,39 +100,11 @@ def _delete_temp_file_safely(temp_path: str) -> None:
         pass
 
 
-def _get_existing_job_by_idempotency_key(
-    idempotency_key: str | None
-) -> dict | None:
-    if not idempotency_key:
-        return None
-
-    db = SessionLocal()
-
-    try:
-        existing_job = crud.get_job_by_idempotency_key(
-            db=db,
-            idempotency_key=idempotency_key
-        )
-
-        if existing_job is None:
-            return None
-
-        return {
-            "job_id": existing_job.id,
-            "status": existing_job.status,
-            "input_audio": existing_job.audio_key
-        }
-
-    finally:
-        db.close()
-
-
 def _create_upload_database_records(
     job_id: str,
     audio_key: str,
     filename: str,
     speaker_id: Optional[int],
-    idempotency_key: Optional[str],
     params: dict
 ) -> None:
     db = SessionLocal()
@@ -155,7 +127,7 @@ def _create_upload_database_records(
             status="queued",
             audio_key=audio_key,
             params=params,
-            idempotency_key=idempotency_key
+            idempotency_key=None
         )
 
         crud.create_recording(
@@ -196,25 +168,9 @@ async def upload_transcription(
         ...,
         description="Audio file to process."
     ),
-    speaker_id: Optional[int] = None,
     language: str = "auto",
-    min_speakers: Optional[int] = None,
-    max_speakers: Optional[int] = None,
-    webhook_url: Optional[str] = None,
-    initial_prompt: Optional[str] = None,
-    idempotency_key: Optional[str] = Header(
-        None,
-        alias="Idempotency-Key"
-    )
+    speaker_id: Optional[int] = None
 ):
-    existing_job_response = await run_in_threadpool(
-        _get_existing_job_by_idempotency_key,
-        idempotency_key
-    )
-
-    if existing_job_response is not None:
-        return existing_job_response
-
     job_id = str(uuid4())
 
     original_filename = file.filename or "audio.bin"
@@ -244,10 +200,6 @@ async def upload_transcription(
     params = {
         "speaker_id": speaker_id,
         "language": language,
-        "min_speakers": min_speakers,
-        "max_speakers": max_speakers,
-        "webhook_url": webhook_url,
-        "initial_prompt": initial_prompt,
         "storage": "minio",
         "file_size": file_size
     }
@@ -259,7 +211,6 @@ async def upload_transcription(
             object_key,
             original_filename,
             speaker_id,
-            idempotency_key,
             params
         )
 
@@ -276,10 +227,6 @@ async def upload_transcription(
             "input_audio": object_key,
             "job_id": job_id,
             "language": task_language,
-            "min_speakers": min_speakers,
-            "max_speakers": max_speakers,
-            "webhook_url": webhook_url,
-            "initial_prompt": initial_prompt,
             "input_storage": "minio"
         },
         task_id=job_id
