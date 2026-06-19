@@ -1,37 +1,41 @@
+import logging
 import os
 import uuid
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    PointStruct,
-    VectorParams,
-)
+from qdrant_client.models import Distance, PointStruct, VectorParams
+
+logger = logging.getLogger(__name__)
 
 
 class SpeakerIdentificationService:
     COLLECTION_NAME = "speaker_voices"
-    VECTOR_SIZE = 512
-    MATCH_THRESHOLD = 0.90
+    VECTOR_SIZE = 192
+    MATCH_THRESHOLD = float(os.getenv("SPEAKER_MATCH_THRESHOLD", "0.80"))
 
     def __init__(self):
         self.client = QdrantClient(
             host=os.getenv("QDRANT_HOST", "localhost"),
             port=int(os.getenv("QDRANT_PORT", "6333"))
         )
-
         self._ensure_collection()
 
     def _ensure_collection(self) -> None:
         collections = self.client.get_collections()
-
-        existing = {
-            collection.name
-            for collection in collections.collections
-        }
+        existing = {c.name for c in collections.collections}
 
         if self.COLLECTION_NAME in existing:
-            return
+            info = self.client.get_collection(self.COLLECTION_NAME)
+            existing_size = info.config.params.vectors.size
+            if existing_size == self.VECTOR_SIZE:
+                return
+            logger.info(
+                "Qdrant collection '%s' has vector size %s, expected %s. Recreating.",
+                self.COLLECTION_NAME,
+                existing_size,
+                self.VECTOR_SIZE
+            )
+            self.client.delete_collection(self.COLLECTION_NAME)
 
         self.client.create_collection(
             collection_name=self.COLLECTION_NAME,
@@ -87,22 +91,14 @@ class SpeakerIdentificationService:
         speaker_id: int,
         embedding: list[float]
     ) -> None:
-        point_id = str(
-            uuid.uuid5(
-                uuid.NAMESPACE_DNS,
-                f"speaker_{speaker_id}"
-            )
-        )
-
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"speaker_{speaker_id}"))
         self.client.upsert(
             collection_name=self.COLLECTION_NAME,
             points=[
                 PointStruct(
                     id=point_id,
                     vector=embedding,
-                    payload={
-                        "speaker_id": speaker_id
-                    }
+                    payload={"speaker_id": speaker_id}
                 )
             ]
         )
@@ -111,13 +107,7 @@ class SpeakerIdentificationService:
         self,
         speaker_id: int
     ) -> None:
-        point_id = str(
-            uuid.uuid5(
-                uuid.NAMESPACE_DNS,
-                f"speaker_{speaker_id}"
-            )
-        )
-
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"speaker_{speaker_id}"))
         self.client.delete(
             collection_name=self.COLLECTION_NAME,
             points_selector=[point_id]
