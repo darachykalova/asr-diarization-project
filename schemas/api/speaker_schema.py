@@ -39,6 +39,7 @@ class SpeakerResponse(BaseModel):
     id: int
     name: str
     phone: Optional[str]
+    kind: str
     created_at: datetime
 
     model_config = {
