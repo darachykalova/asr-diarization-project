@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
@@ -220,11 +222,18 @@ async def delete_transcript(job_id: str):
 
 
 @router.get(
-    "/{job_id}/export/txt",
-    summary="Export transcript as TXT",
+    "/{job_id}/export",
+    summary="Export transcript",
+    description="Export transcript as TXT, SRT or VTT.",
     dependencies=[Depends(require_scope("read"))]
 )
-async def export_txt(job_id: str):
+async def export_transcript(
+    job_id: str,
+    format: Literal["txt", "srt", "vtt"] = Query(
+        default="txt",
+        description="Export format"
+    )
+):
     transcript = await run_in_threadpool(
         _get_transcript_from_postgres,
         job_id
@@ -236,52 +245,18 @@ async def export_txt(job_id: str):
             detail=f"Transcript not found for job: {job_id}"
         )
 
-    return _file_response(
-        content=_build_txt(transcript),
-        filename=f"transcript_{job_id}.txt",
-        media_type="text/plain"
-    )
-
-
-@router.get(
-    "/{job_id}/export/srt",
-    summary="Export transcript as SRT",
-    dependencies=[Depends(require_scope("read"))]
-)
-async def export_srt(job_id: str):
-    transcript = await run_in_threadpool(
-        _get_transcript_from_postgres,
-        job_id
-    )
-
-    if transcript is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Transcript not found for job: {job_id}"
+    if format == "txt":
+        return _file_response(
+            content=_build_txt(transcript),
+            filename=f"transcript_{job_id}.txt",
+            media_type="text/plain"
         )
 
-    return _file_response(
-        content=_build_srt(transcript),
-        filename=f"transcript_{job_id}.srt",
-        media_type="text/plain"
-    )
-
-
-@router.get(
-    "/{job_id}/export/vtt",
-    summary="Export transcript as VTT",
-    dependencies=[Depends(require_scope("read"))]
-)
-async def export_vtt(job_id: str):
-    transcript = await run_in_threadpool(
-        _get_transcript_from_postgres,
-        job_id
-    )
-
-    if transcript is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Transcript not found for job: {job_id}"
+    if format == "srt":
+        return _file_response(
+            content=_build_srt(transcript),
+            filename=f"transcript_{job_id}.srt",
+            media_type="text/plain"
         )
 
     return _file_response(

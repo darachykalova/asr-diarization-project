@@ -162,6 +162,10 @@ def delete_speaker(
     deleted = crud.delete_speaker(db=db, speaker_id=speaker_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Speaker not found")
+    try:
+        SpeakerIdentificationService().delete_speaker(speaker_id)
+    except Exception:
+        logger.warning("Failed to delete Qdrant vector for speaker_id=%s", speaker_id)
     return {"message": f"Speaker {speaker_id} deleted"}
 
 
@@ -200,6 +204,11 @@ def merge_speakers(
             status_code=404,
             detail=f"Target speaker {data.target_speaker_id} not found"
         )
+
+    try:
+        SpeakerIdentificationService().delete_speaker(speaker_id)
+    except Exception:
+        logger.warning("Failed to delete Qdrant vector for source speaker_id=%s", speaker_id)
 
     return {
         "message": f"Speaker {speaker_id} merged into {data.target_speaker_id}",

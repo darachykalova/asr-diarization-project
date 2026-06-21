@@ -4,7 +4,6 @@ import wave
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
@@ -44,7 +43,7 @@ def test_speaker_response_has_kind_field():
     assert "kind" in SpeakerResponse.model_fields
 
 
-def test_create_speaker_without_audio(tmp_path):
+def test_create_speaker_without_audio():
     app.dependency_overrides[verify_api_key] = _override_auth
     client = TestClient(app)
 
@@ -137,3 +136,31 @@ def test_create_speaker_returns_422_when_embedding_fails(tmp_path):
 
     assert response.status_code == 422
     assert "embedding" in response.json()["detail"]
+
+
+def test_delete_speaker_cleans_qdrant():
+    app.dependency_overrides[verify_api_key] = _override_auth
+    client = TestClient(app)
+
+    with patch("database.crud.delete_speaker", return_value=True), \
+         patch("api.routes.speakers.SpeakerIdentificationService") as mock_id_cls:
+        response = client.delete("/v1/speakers/1")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    mock_id_cls.return_value.delete_speaker.assert_called_once_with(1)
+
+
+def test_merge_speakers_cleans_source_qdrant():
+    app.dependency_overrides[verify_api_key] = _override_auth
+    client = TestClient(app)
+
+    with patch("database.crud.merge_speakers", return_value="merged"), \
+         patch("api.routes.speakers.SpeakerIdentificationService") as mock_id_cls:
+        response = client.post("/v1/speakers/1/merge", json={"target_speaker_id": 2})
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    mock_id_cls.return_value.delete_speaker.assert_called_once_with(1)
