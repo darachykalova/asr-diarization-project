@@ -1,6 +1,9 @@
+import os
 from typing import Optional
 
 from faster_whisper import WhisperModel
+
+_MODEL_CACHE_DIR = os.getenv("MODEL_CACHE_DIR", "/app/models")
 
 
 class ASRService:
@@ -15,7 +18,8 @@ class ASRService:
         self.model = WhisperModel(
             model_size,
             device="cpu",
-            compute_type="int8"
+            compute_type="int8",
+            download_root=os.path.join(_MODEL_CACHE_DIR, "whisper"),
         )
 
     def transcribe(

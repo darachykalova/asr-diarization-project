@@ -144,7 +144,9 @@ def process_audio_task(
         worker_job_service = WorkerJobService(
             model_size=model_size,
             language=language,
-            log_file=log_file
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+            log_file=log_file,
         )
 
         run_result = worker_job_service.run_job(
