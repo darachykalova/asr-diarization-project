@@ -24,8 +24,16 @@ class PipelineService:
     6. speaker embeddings
     """
 
-    def __init__(self, model_size: str = "base", language: str | None = None):
+    def __init__(
+        self,
+        model_size: str = "base",
+        language: str | None = None,
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
+    ):
         self.language = language
+        self.min_speakers = min_speakers
+        self.max_speakers = max_speakers
 
         self.vad_service = VADService()
         self.asr_service = ASRService(model_size=model_size)
@@ -87,7 +95,9 @@ class PipelineService:
 
         speaker_segments = self.diarization_service.diarize(
             audio_path=normalized_file,
-            speech_segments=speech_segments
+            speech_segments=speech_segments,
+            min_speakers=self.min_speakers,
+            max_speakers=self.max_speakers,
         )
 
         diarized_segments = self.diarization_service.assign_speakers_to_asr_segments(

@@ -77,7 +77,9 @@ class DiarizationService:
     def diarize(
         self,
         audio_path: str,
-        speech_segments: list[dict] | None = None
+        speech_segments: list[dict] | None = None,
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
     ) -> list[dict]:
         audio_file = Path(audio_path)
 
@@ -98,13 +100,18 @@ class DiarizationService:
 
         waveform = waveform.to(device)
 
+        diarize_kwargs: dict = {}
+        if min_speakers is not None:
+            diarize_kwargs["min_speakers"] = min_speakers
+        if max_speakers is not None:
+            diarize_kwargs["max_speakers"] = max_speakers
+
         diarization_result = pipeline(
             {
                 "waveform": waveform,
                 "sample_rate": sample_rate
             },
-            min_speakers=1,
-            max_speakers=2
+            **diarize_kwargs
         )
 
         if hasattr(diarization_result, "speaker_diarization"):

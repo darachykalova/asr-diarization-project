@@ -37,6 +37,11 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/ > /dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - asr-net
 
@@ -64,12 +69,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        HF_TOKEN: ${HF_TOKEN:-}
     image: asr-app
     restart: unless-stopped
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      HF_HOME: /app/models/hf
+      MODEL_CACHE_DIR: /app/models
     volumes:
       - ./data:/app/data
       - models_cache:/app/models
@@ -79,6 +89,8 @@ services:
       postgres:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     networks:
@@ -89,6 +101,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      HF_HOME: /app/models/hf
+      MODEL_CACHE_DIR: /app/models
     volumes:
       - ./data:/app/data
       - models_cache:/app/models
@@ -98,6 +113,8 @@ services:
       postgres:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
     command: python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=solo
     networks:

@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,10 +19,14 @@ class WorkerJobService:
         self,
         model_size: str = "base",
         language: str | None = None,
-        log_file: str = "data/output/pipeline.log"
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
+        log_file: str = "data/output/pipeline.log",
     ):
         self.model_size = model_size
         self.language = language
+        self.min_speakers = min_speakers
+        self.max_speakers = max_speakers
         self.logger = setup_logger(log_file=log_file)
         self.transcript_repository = TranscriptRepository()
 
@@ -45,7 +50,9 @@ class WorkerJobService:
 
         pipeline_service = PipelineService(
             model_size=self.model_size,
-            language=self.language
+            language=self.language,
+            min_speakers=self.min_speakers,
+            max_speakers=self.max_speakers,
         )
 
         self.logger.info("Job %s pipeline started", job_id)
@@ -300,6 +307,9 @@ class WorkerJobService:
 
             finally:
                 db.close()
+                temp_dir = Path("data/temp_voice") / job_id
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
 
         except Exception as error:
             self.logger.warning(
