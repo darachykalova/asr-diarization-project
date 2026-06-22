@@ -1,3 +1,4 @@
+import logging
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -10,24 +11,26 @@ from database.session import SessionLocal
 from services.webhook_service import send_webhook
 from services.worker_job_service import WorkerJobService
 
+logger = logging.getLogger(__name__)
+
 
 def _update_job_status_safely(
     job_id: str,
     status: str,
     error_code: str | None = None,
-    error_message: str | None = None
+    error_message: str | None = None,
+    progress: int | None = None,
 ) -> None:
     db = SessionLocal()
-
     try:
         crud.update_job_status(
             db=db,
             job_id=job_id,
             status=status,
             error_code=error_code,
-            error_message=error_message
+            error_message=error_message,
+            progress=progress,
         )
-
     finally:
         db.close()
 
@@ -90,7 +93,14 @@ def _delete_temp_file(
         pass
 
 
-@celery_app.task(name="process_audio_task")
+@celery_app.task(
+    name="process_audio_task",
+    autoretry_for=(Exception,),
+    max_retries=2,
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+)
 def process_audio_task(
     input_audio: str,
     normalized_audio: Optional[str] = None,
@@ -146,6 +156,7 @@ def process_audio_task(
             language=language,
             min_speakers=min_speakers,
             max_speakers=max_speakers,
+            initial_prompt=initial_prompt,
             log_file=log_file,
         )
 
@@ -156,37 +167,54 @@ def process_audio_task(
             job_id=job_id
         )
 
-        if run_result.success:
-            _update_job_status_safely(
-                job_id=job_id,
-                status="done"
-            )
+        final_status = run_result.status  # "done" | "partial" | "failed"
 
-            _send_webhook_safely(
-                webhook_url=webhook_url,
-                job_id=job_id,
-                status="done",
-                error=None
-            )
+        _update_job_status_safely(
+            job_id=job_id,
+            status=final_status,
+            error_code="PIPELINE_FAILED" if final_status == "failed" else (
+                "PARTIAL_RESULT" if final_status == "partial" else None
+            ),
+            error_message=run_result.error,
+            progress=100 if final_status in {"done", "partial"} else None,
+        )
 
-        else:
-            _update_job_status_safely(
-                job_id=job_id,
-                status="failed",
-                error_code="PIPELINE_FAILED",
-                error_message=run_result.error
-            )
-
-            _send_webhook_safely(
-                webhook_url=webhook_url,
-                job_id=job_id,
-                status="failed",
-                error=run_result.error
-            )
+        _send_webhook_safely(
+            webhook_url=webhook_url,
+            job_id=job_id,
+            status=final_status,
+            error=run_result.error,
+        )
 
         return run_result.model_dump()
 
     finally:
-        _delete_temp_file(
-            downloaded_audio_path
-        )
+        _delete_temp_file(downloaded_audio_path)
+
+
+from celery.signals import task_failure
+
+
+@celery_app.task(name="dead_letter_task", queue="dead_letter")
+def dead_letter_task(job_id: str, error: str, original_kwargs: dict) -> None:
+    logger.error(
+        "DLQ: job_id=%s error=%s original_kwargs=%s",
+        job_id, error, original_kwargs,
+    )
+    _update_job_status_safely(
+        job_id=job_id,
+        status="failed",
+        error_code="MAX_RETRIES_EXCEEDED",
+        error_message=error,
+    )
+
+
+@task_failure.connect(sender="process_audio_task")
+def on_process_audio_task_failure(sender, task_id, exception, args, kwargs, traceback, einfo, **kw):
+    job_id = kwargs.get("job_id") or task_id
+    logger.error("Task %s exhausted all retries: %s", job_id, exception)
+    celery_app.send_task(
+        "dead_letter_task",
+        kwargs={"job_id": job_id, "error": str(exception), "original_kwargs": kwargs},
+        queue="dead_letter",
+    )

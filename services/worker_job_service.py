@@ -21,14 +21,28 @@ class WorkerJobService:
         language: str | None = None,
         min_speakers: int | None = None,
         max_speakers: int | None = None,
+        initial_prompt: str | None = None,
         log_file: str = "data/output/pipeline.log",
     ):
         self.model_size = model_size
         self.language = language
         self.min_speakers = min_speakers
         self.max_speakers = max_speakers
+        self.initial_prompt = initial_prompt
         self.logger = setup_logger(log_file=log_file)
         self.transcript_repository = TranscriptRepository()
+        self._job_id: str | None = None
+
+    def _update_progress(self, progress: int) -> None:
+        if self._job_id is None:
+            return
+        db = SessionLocal()
+        try:
+            crud.update_job_status(db=db, job_id=self._job_id, status="processing", progress=progress)
+        except Exception:
+            pass
+        finally:
+            db.close()
 
     def run_job(
         self,
@@ -40,6 +54,7 @@ class WorkerJobService:
         if job_id is None:
             job_id = f"job_{uuid4().hex}"
 
+        self._job_id = job_id
         input_audio_path = Path(input_audio)
         normalized_audio_path = Path(normalized_audio)
         output_json_path = Path(output_json)
@@ -53,6 +68,8 @@ class WorkerJobService:
             language=self.language,
             min_speakers=self.min_speakers,
             max_speakers=self.max_speakers,
+            initial_prompt=self.initial_prompt,
+            on_progress=self._update_progress,
         )
 
         self.logger.info("Job %s pipeline started", job_id)

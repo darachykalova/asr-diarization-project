@@ -1,20 +1,15 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
 class JobStatusResponse(BaseModel):
-    job_id: str = Field(
-        ...,
-        min_length=1,
-        description="Unique background processing job ID."
-    )
-    status: str = Field(
-        ...,
-        min_length=1,
-        description="Current job status: queued, processing, done or failed."
-    )
-    error: Optional[str] = Field(
-        None,
-        description="Error message if task failed."
-    )
+    job_id: str = Field(..., description="Unique background processing job ID.")
+    status: str = Field(..., description="queued / processing / done / failed / partial")
+    progress: int = Field(0, ge=0, le=100, description="Completion percentage 0–100.")
+    error_code: Optional[str] = Field(None, description="Machine-readable error code.")
+    error_message: Optional[str] = Field(None, description="Human-readable error description.")
+    created_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None

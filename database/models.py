@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.database import Base
@@ -15,6 +16,7 @@ class Job(Base):
     params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    progress: Mapped[int] = mapped_column(Integer, default=0)
 
     idempotency_key: Mapped[str | None] = mapped_column(
         String(200),
@@ -61,6 +63,7 @@ class Transcript(Base):
     status: Mapped[str] = mapped_column(String(50))
     success: Mapped[bool] = mapped_column(Boolean)
     full_text: Mapped[str] = mapped_column(Text)
+    full_text_vector = mapped_column(TSVECTOR, nullable=True)
 
     language: Mapped[str | None] = mapped_column(
         String(10),

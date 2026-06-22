@@ -1,0 +1,32 @@
+# Worker-only compose for GPU hosts.
+# Connects to shared infrastructure (Redis, Postgres, MinIO, Qdrant) running on another host.
+#
+# Usage on GPU host:
+#   INFRA_HOST=192.168.1.10 docker compose -f compose.worker.yml up -d
+#
+# Required env vars (set in .env.worker or pass via environment):
+#   INFRA_HOST          — IP/hostname of the infrastructure host
+#   HF_TOKEN            — HuggingFace token (for pyannote)
+#   REDIS_URL           — e.g. redis://<INFRA_HOST>:6379/0
+#   REDIS_BACKEND_URL   — e.g. redis://<INFRA_HOST>:6379/1
+#   DATABASE_URL        — e.g. postgresql+psycopg://user:pass@<INFRA_HOST>:5432/asr_db
+#   MINIO_ENDPOINT      — e.g. <INFRA_HOST>:9000
+#   QDRANT_HOST         — e.g. <INFRA_HOST>
+#   QDRANT_PORT         — 6333
+
+services:
+  worker:
+    image: asr-app
+    restart: unless-stopped
+    env_file:
+      - .env.worker
+    environment:
+      HF_HOME: /app/models/hf
+      MODEL_CACHE_DIR: /app/models
+    volumes:
+      - ./data:/app/data
+      - models_cache:/app/models
+    command: python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=solo --concurrency=1
+
+volumes:
+  models_cache:

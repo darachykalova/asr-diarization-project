@@ -1,14 +1,19 @@
+import logging
 import os
 from pathlib import Path
 
 from minio import Minio
+from minio.lifecycleconfig import LifecycleConfig, Rule, Expiration
+from minio.commonconfig import ENABLED, Filter
 
+logger = logging.getLogger(__name__)
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "admin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "admin12345")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "audio-files")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
+_AUDIO_TTL_DAYS = int(os.getenv("AUDIO_TTL_DAYS", "90"))
 
 
 class MinioStorageClient:
@@ -27,6 +32,25 @@ class MinioStorageClient:
     def ensure_bucket_exists(self) -> None:
         if not self.client.bucket_exists(self.bucket_name):
             self.client.make_bucket(self.bucket_name)
+        self._apply_lifecycle()
+
+    def _apply_lifecycle(self) -> None:
+        if _AUDIO_TTL_DAYS <= 0:
+            return
+        try:
+            config = LifecycleConfig(
+                [
+                    Rule(
+                        ENABLED,
+                        rule_filter=Filter(prefix="jobs/"),
+                        rule_id="audio-ttl",
+                        expiration=Expiration(days=_AUDIO_TTL_DAYS),
+                    )
+                ]
+            )
+            self.client.set_bucket_lifecycle(self.bucket_name, config)
+        except Exception as exc:
+            logger.warning("Failed to set MinIO lifecycle policy: %s", exc)
 
     def upload_file(
         self,

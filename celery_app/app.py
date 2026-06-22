@@ -1,6 +1,7 @@
 import os
 
 from celery import Celery
+from kombu import Queue
 
 
 REDIS_URL = os.getenv(
@@ -23,5 +24,15 @@ celery_app.conf.update(
     task_track_started=True,
     result_expires=3600,
     timezone="Europe/Minsk",
-    enable_utc=True
+    enable_utc=True,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    task_queues=(
+        Queue("default"),
+        Queue("dead_letter"),
+    ),
+    task_default_queue="default",
+    task_routes={
+        "process_audio_task": {"queue": "default"},
+    },
 )

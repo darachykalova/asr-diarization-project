@@ -25,8 +25,9 @@ class ASRService:
     def transcribe(
         self,
         audio_path: str,
-        language: Optional[str] = None
-    ) -> list[dict]:
+        language: Optional[str] = None,
+        initial_prompt: Optional[str] = None,
+    ) -> tuple[list[dict], str | None, float | None]:
         """
         Transcribes audio file into text segments with word-level timestamps.
 
@@ -50,6 +51,9 @@ class ASRService:
 
         if language:
             transcribe_kwargs["language"] = language
+
+        if initial_prompt:
+            transcribe_kwargs["initial_prompt"] = initial_prompt
 
         segments, info = self.model.transcribe(
             audio_path,
@@ -86,4 +90,6 @@ class ASRService:
                 }
             )
 
-        return result
+        detected_language = getattr(info, "language", None)
+        duration = getattr(info, "duration", None)
+        return result, detected_language, duration

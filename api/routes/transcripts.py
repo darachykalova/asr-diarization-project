@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -170,6 +170,27 @@ def _file_response(
 
 
 @router.get(
+    "",
+    summary="List transcripts",
+    description="Returns paginated list of transcripts with optional filters.",
+    dependencies=[Depends(require_scope("read"))]
+)
+async def list_transcripts(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    speaker_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+):
+    return await run_in_threadpool(
+        TranscriptRepository().list_transcripts,
+        page=page,
+        page_size=page_size,
+        speaker_id=speaker_id,
+        status=status,
+    )
+
+
+@router.get(
     "/{job_id}",
     summary="Get transcript result",
     description="Returns transcript result from Postgres by job ID.",
@@ -219,6 +240,35 @@ async def delete_transcript(job_id: str):
         "qdrant_deleted": result["qdrant_deleted"],
         "postgres_deleted": result["postgres_deleted"]
     }
+
+
+@router.get(
+    "/{job_id}/segments",
+    summary="Get transcript segments",
+    description="Returns paginated segments for a transcript, with optional speaker filter.",
+    dependencies=[Depends(require_scope("read"))]
+)
+async def get_segments(
+    job_id: str,
+    speaker_id: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+):
+    result = await run_in_threadpool(
+        TranscriptRepository().get_segments_by_job_id,
+        job_id=job_id,
+        speaker_id=speaker_id,
+        page=page,
+        page_size=page_size,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Transcript not found for job: {job_id}"
+        )
+
+    return result
 
 
 @router.get(

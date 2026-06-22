@@ -14,3 +14,7 @@ data/normalized/
 .vscode/
 
 .env
+
+build*.log
+nginx/certs/*.key
+nginx/certs/*.crt

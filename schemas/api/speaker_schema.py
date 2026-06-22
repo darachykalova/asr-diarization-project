@@ -47,6 +47,18 @@ class SpeakerResponse(BaseModel):
     }
 
 
+class OccurrenceResponse(BaseModel):
+    transcript_id: int
+    local_label: str
+    match_score: Optional[float]
+
+    model_config = {"from_attributes": True}
+
+
+class SpeakerDetailResponse(SpeakerResponse):
+    occurrences: list[OccurrenceResponse] = []
+
+
 class SpeakersPageResponse(BaseModel):
     items: list[SpeakerResponse]
     page: int
