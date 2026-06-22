@@ -154,24 +154,18 @@ class DiarizationService:
             asr_start = float(asr_segment["start"])
             asr_end = float(asr_segment["end"])
 
+            speakers_with_overlap: set[str] = set()
+
             for speaker_segment in speaker_segments:
                 speaker_start = float(speaker_segment["start"])
                 speaker_end = float(speaker_segment["end"])
 
-                overlap_start = max(
-                    asr_start,
-                    speaker_start
-                )
+                overlap_start = max(asr_start, speaker_start)
+                overlap_end = min(asr_end, speaker_end)
+                overlap = max(0.0, overlap_end - overlap_start)
 
-                overlap_end = min(
-                    asr_end,
-                    speaker_end
-                )
-
-                overlap = max(
-                    0.0,
-                    overlap_end - overlap_start
-                )
+                if overlap > 0:
+                    speakers_with_overlap.add(speaker_segment["speaker"])
 
                 if overlap > best_overlap:
                     best_overlap = overlap
@@ -186,9 +180,10 @@ class DiarizationService:
                     "start": asr_segment["start"],
                     "end": asr_segment["end"],
                     "speaker": best_speaker,
+                    "overlap": len(speakers_with_overlap) > 1,
                     "text": asr_segment["text"],
                     "words": asr_segment["words"],
-                    "diarization_source": best_source
+                    "diarization_source": best_source,
                 }
             )
 

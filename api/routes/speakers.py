@@ -11,8 +11,10 @@ from api.auth import require_scope
 from database import crud
 from database.session import SessionLocal
 from schemas.api.speaker_schema import (
+    OccurrenceResponse,
     RecordingResponse,
     SpeakerDeleteResponse,
+    SpeakerDetailResponse,
     SpeakerMergeRequest,
     SpeakerMergeResponse,
     SpeakerResponse,
@@ -108,6 +110,38 @@ def create_speaker(
         logger.info("Registered voice for speaker_id=%s", speaker.id)
 
     return speaker
+
+
+@router.get(
+    "/{speaker_id}",
+    response_model=SpeakerDetailResponse,
+    summary="Get speaker",
+    description="Returns a speaker with their occurrence history across all transcripts.",
+    dependencies=[Depends(require_scope("read"))]
+)
+def get_speaker(
+    speaker_id: int,
+    db: Session = Depends(get_db)
+):
+    speaker = crud.get_speaker(db=db, speaker_id=speaker_id)
+    if speaker is None:
+        raise HTTPException(status_code=404, detail="Speaker not found")
+    occurrences = crud.get_occurrences_by_speaker(db=db, speaker_id=speaker_id)
+    return SpeakerDetailResponse(
+        id=speaker.id,
+        name=speaker.name,
+        phone=speaker.phone,
+        kind=speaker.kind,
+        created_at=speaker.created_at,
+        occurrences=[
+            OccurrenceResponse(
+                transcript_id=o.transcript_id,
+                local_label=o.local_label,
+                match_score=o.match_score,
+            )
+            for o in occurrences
+        ],
+    )
 
 
 @router.get(

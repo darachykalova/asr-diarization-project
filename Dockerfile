@@ -9,12 +9,15 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir --timeout=300 --retries=10 -r requirements.txt
+RUN pip install --no-cache-dir --timeout=300 --retries=10 \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
 
 # All HuggingFace downloads (faster-whisper, pyannote, sentence-transformers) go here.
 # SpeechBrain uses MODEL_CACHE_DIR explicitly in the service code.
 ENV HF_HOME=/app/models/hf
 ENV MODEL_CACHE_DIR=/app/models
+ENV HF_HUB_DISABLE_XET=1
 
 # Copy download script before the full source copy so Docker can cache the
 # model layer independently of source code changes.

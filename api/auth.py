@@ -2,7 +2,7 @@ import hashlib
 import logging
 from typing import Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,7 @@ def hash_key(raw_key: str) -> str:
 
 
 def verify_api_key(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
 ) -> ApiKey:
@@ -66,6 +67,7 @@ def verify_api_key(
         api_key.scopes
     )
 
+    request.state.api_key_id = api_key.id
     return api_key
 
 

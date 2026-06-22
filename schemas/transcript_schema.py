@@ -189,6 +189,14 @@ class TranscriptResult(BaseModel):
         "",
         description="Full transcript text."
     )
+    language: Optional[str] = Field(
+        None,
+        description="Detected or specified language code."
+    )
+    duration_sec: Optional[float] = Field(
+        None,
+        description="Audio duration in seconds."
+    )
 
 
 class PipelineRunResult(BaseModel):

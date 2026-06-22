@@ -340,12 +340,10 @@ def update_job_status(
     job_id: str,
     status: str,
     error_code: str | None = None,
-    error_message: str | None = None
+    error_message: str | None = None,
+    progress: int | None = None,
 ) -> Job | None:
-    job = get_job_by_id(
-        db=db,
-        job_id=job_id
-    )
+    job = get_job_by_id(db=db, job_id=job_id)
 
     if job is None:
         return None
@@ -354,13 +352,27 @@ def update_job_status(
     job.error_code = error_code
     job.error_message = error_message
 
-    if status == "processing":
+    if progress is not None:
+        job.progress = progress
+
+    if status == "processing" and job.started_at is None:
         job.started_at = datetime.utcnow()
 
     if status in {"done", "failed", "partial"}:
         job.finished_at = datetime.utcnow()
+        if progress is None:
+            job.progress = 100 if status == "done" else job.progress
 
     db.commit()
     db.refresh(job)
 
     return job
+
+
+def get_occurrences_by_speaker(db: Session, speaker_id: int) -> list[Occurrence]:
+    return (
+        db.query(Occurrence)
+        .filter(Occurrence.speaker_id == speaker_id)
+        .order_by(Occurrence.transcript_id.desc())
+        .all()
+    )

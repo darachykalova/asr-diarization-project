@@ -38,10 +38,11 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333' 2>/dev/null || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 10s
     networks:
       - asr-net
 
@@ -65,6 +66,20 @@ services:
     networks:
       - asr-net
 
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+    networks:
+      - asr-net
+
   api:
     build:
       context: .
@@ -73,8 +88,6 @@ services:
         HF_TOKEN: ${HF_TOKEN:-}
     image: asr-app
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     env_file:
       - .env
     environment:
@@ -92,6 +105,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+    expose:
+      - "8000"
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     networks:
       - asr-net
@@ -120,6 +135,57 @@ services:
     networks:
       - asr-net
 
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    profiles: ["backup"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-audio-files}
+      BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-7}
+    volumes:
+      - backup_data:/backups
+    depends_on:
+      - postgres
+      - qdrant
+      - minio
+    networks:
+      - asr-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - asr-net
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - asr-net
+
 networks:
   asr-net:
     driver: bridge
@@ -129,3 +195,6 @@ volumes:
   qdrant_data:
   minio_data:
   models_cache:
+  prometheus_data:
+  grafana_data:
+  backup_data:
