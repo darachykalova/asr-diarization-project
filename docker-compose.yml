@@ -123,13 +123,11 @@ services:
     environment:
       HF_HOME: /app/models/hf
       MODEL_CACHE_DIR: /app/models
-      # Models are pre-downloaded into the image/volume — never hit the network
-      # at runtime (faster, robust, satisfies ТЗ offline requirement).
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
-      # 2 prefork workers × 4 threads each = 8 cores, no oversubscription.
       OMP_NUM_THREADS: "4"
       MKL_NUM_THREADS: "4"
+      MINIO_MODELS_BUCKET: "ml-models"
     mem_limit: 5g
     volumes:
       - ./data:/app/data
@@ -143,8 +141,10 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-    # prefork: 2 parallel workers, each caches models after first task (max-tasks-per-child reloads after 10 tasks to prevent memory fragmentation)
-    command: python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=prefork --concurrency=2 --max-tasks-per-child=10
+    # sync models from MinIO on startup (skips if models already present locally)
+    command: >
+      sh -c "python scripts/sync_models_from_minio.py &&
+             python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=prefork --concurrency=2 --max-tasks-per-child=10"
     networks:
       - asr-net
 
