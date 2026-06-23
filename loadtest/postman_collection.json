@@ -4,10 +4,17 @@
     "description": "Две папки:\n- PERFORMANCE TEST: только GET-эндпоинты, 0% ошибок, для Postman Performance (5 VU, 60s)\n- WORKFLOW (run manually): POST upload → poll → GET result, запускать вручную, не через Performance\n\nSetup: импортируй postman_environment.json, отключи SSL verification в Settings.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    {
+      "key": "done_job_id",
+      "value": "42f5909c-dbf6-4884-82e7-264448d29900",
+      "type": "string"
+    }
+  ],
   "item": [
     {
       "name": "⚡ PERFORMANCE TEST (запускать через Performance)",
-      "description": "Только быстрые GET-запросы. Все используют done_job_id из окружения — существующая завершённая задача. 0% ошибок ожидается.",
+      "description": "Только быстрые GET-запросы. 0% ошибок ожидается.",
       "item": [
         {
           "name": "GET /healthz",
@@ -15,13 +22,10 @@
             "method": "GET",
             "url": "{{base_url}}/healthz"
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200 ok', () => pm.response.to.have.status(200));",
-              "pm.test('status=ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 ok', () => pm.response.to.have.status(200));",
+            "pm.test('status=ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+          ]}}]
         },
         {
           "name": "GET /readyz",
@@ -29,128 +33,91 @@
             "method": "GET",
             "url": "{{base_url}}/readyz"
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200 ready', () => pm.response.to.have.status(200));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 ready', () => pm.response.to.have.status(200));"
+          ]}}]
         },
         {
-          "name": "GET /v1/jobs/{done_job_id}",
+          "name": "GET /v1/jobs/{{done_job_id}}",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/jobs/{{done_job_id}}",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "pm.test('status=done', () => pm.expect(pm.response.json().status).to.eql('done'));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('status=done', () => pm.expect(pm.response.json().status).to.eql('done'));"
+          ]}}]
         },
         {
-          "name": "GET /v1/jobs/{unknown} → 404",
+          "name": "GET /v1/jobs/00000000... → 404",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/jobs/00000000-0000-0000-0000-000000000000",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('404 for unknown job', () => pm.response.to.have.status(404));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404 for unknown job', () => pm.response.to.have.status(404));"
+          ]}}]
         },
         {
-          "name": "GET /v1/transcripts (list)",
+          "name": "GET /v1/transcripts",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/v1/transcripts?page=1&page_size=10",
-              "query": [{"key": "page", "value": "1"}, {"key": "page_size", "value": "10"}]
-            },
+            "url": "{{base_url}}/v1/transcripts?page=1&page_size=10",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "pm.test('has items', () => pm.expect(pm.response.json().items).to.be.an('array'));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('has items', () => pm.expect(pm.response.json().items).to.be.an('array'));"
+          ]}}]
         },
         {
-          "name": "GET /v1/transcripts/{done_job_id}",
+          "name": "GET /v1/transcripts/{{done_job_id}}",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/transcripts/{{done_job_id}}",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "pm.test('has speakers', () => pm.expect(pm.response.json()).to.have.property('speakers'));",
-              "pm.test('has segments', () => pm.expect(pm.response.json().transcript.segments).to.be.an('array'));",
-              "pm.test('segments have words', () => { const s = pm.response.json().transcript.segments; if (s.length > 0) pm.expect(s[0]).to.have.property('words'); });"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('has speakers', () => pm.expect(pm.response.json()).to.have.property('speakers'));",
+            "pm.test('has segments', () => pm.expect(pm.response.json().transcript.segments).to.be.an('array'));"
+          ]}}]
         },
         {
-          "name": "GET /v1/transcripts/{id}/segments",
+          "name": "GET /v1/transcripts/{{done_job_id}}/segments",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/v1/transcripts/{{done_job_id}}/segments?page=1&page_size=20",
-              "query": [{"key": "page", "value": "1"}, {"key": "page_size", "value": "20"}]
-            },
+            "url": "{{base_url}}/v1/transcripts/{{done_job_id}}/segments?page=1&page_size=20",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "pm.test('has items', () => pm.expect(pm.response.json()).to.have.property('items'));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('has items', () => pm.expect(pm.response.json()).to.have.property('items'));"
+          ]}}]
         },
         {
-          "name": "GET /v1/transcripts/{id}/export?format=srt",
+          "name": "GET /v1/transcripts/{{done_job_id}}/export?format=srt",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/v1/transcripts/{{done_job_id}}/export?format=srt",
-              "query": [{"key": "format", "value": "srt"}]
-            },
+            "url": "{{base_url}}/v1/transcripts/{{done_job_id}}/export?format=srt",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200 srt', () => pm.response.to.have.status(200));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 srt', () => pm.response.to.have.status(200));"
+          ]}}]
         },
         {
-          "name": "GET /v1/transcripts/{id}/export?format=vtt",
+          "name": "GET /v1/transcripts/{{done_job_id}}/export?format=vtt",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/v1/transcripts/{{done_job_id}}/export?format=vtt",
-              "query": [{"key": "format", "value": "vtt"}]
-            },
+            "url": "{{base_url}}/v1/transcripts/{{done_job_id}}/export?format=vtt",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200 vtt', () => pm.response.to.have.status(200));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 vtt', () => pm.response.to.have.status(200));"
+          ]}}]
         },
         {
           "name": "GET /v1/speakers",
@@ -159,31 +126,22 @@
             "url": "{{base_url}}/v1/speakers",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "pm.test('has items', () => pm.expect(pm.response.json().items).to.be.an('array'));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('has items', () => pm.expect(pm.response.json().items).to.be.an('array'));"
+          ]}}]
         },
         {
           "name": "GET /v1/search?mode=keyword",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/v1/search?q=%D1%83%D1%81%D1%82%D0%B0%D0%BB&mode=keyword",
-              "query": [{"key": "q", "value": "устал"}, {"key": "mode", "value": "keyword"}]
-            },
+            "url": "{{base_url}}/v1/search?q=%D1%83%D1%81%D1%82%D0%B0%D0%BB&mode=keyword",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "pm.test('has results', () => pm.expect(pm.response.json()).to.have.property('results'));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('has results', () => pm.expect(pm.response.json()).to.have.property('results'));"
+          ]}}]
         },
         {
           "name": "GET /v1/api-keys",
@@ -192,27 +150,21 @@
             "url": "{{base_url}}/v1/api-keys",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ]}}]
         },
         {
-          "name": "GET /metrics (Prometheus)",
+          "name": "GET /metrics",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/metrics",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "pm.test('Prometheus format', () => pm.expect(pm.response.text()).to.include('# HELP'));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('Prometheus format', () => pm.expect(pm.response.text()).to.include('# HELP'));"
+          ]}}]
         },
         {
           "name": "No key → 401",
@@ -220,12 +172,9 @@
             "method": "GET",
             "url": "{{base_url}}/v1/transcripts"
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('401 without key', () => pm.response.to.have.status(401));"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('401 without key', () => pm.response.to.have.status(401));"
+          ]}}]
         }
       ]
     },
@@ -244,68 +193,57 @@
               "formdata": [{
                 "key": "file",
                 "type": "file",
-                "src": "audio_short_15s.mp3",
-                "description": "Выбери loadtest/audio_short_15s.mp3"
+                "src": "audio_short_15s.mp3"
               }]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('202 accepted', () => pm.response.to.have.status(202));",
-              "pm.test('has job_id', () => pm.expect(pm.response.json()).to.have.property('job_id'));",
-              "if (pm.response.code === 202) {",
-              "  const jobId = pm.response.json().job_id;",
-              "  pm.environment.set('workflow_job_id', jobId);",
-              "  console.log('Submitted job_id:', jobId);",
-              "}"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('202 accepted', () => pm.response.to.have.status(202));",
+            "pm.test('has job_id', () => pm.expect(pm.response.json()).to.have.property('job_id'));",
+            "if (pm.response.code === 202) {",
+            "  const jobId = pm.response.json().job_id;",
+            "  pm.environment.set('workflow_job_id', jobId);",
+            "  pm.collectionVariables.set('workflow_job_id', jobId);",
+            "  console.log('Submitted job_id:', jobId);",
+            "}"
+          ]}}]
         },
         {
-          "name": "2. Poll GET /v1/jobs/{workflow_job_id} (автоповтор до done)",
+          "name": "2. Poll GET /v1/jobs/{{workflow_job_id}} (автоповтор до done)",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/jobs/{{workflow_job_id}}",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "const b = pm.response.json();",
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "console.log('Status:', b.status, 'Progress:', b.progress);",
-              "pm.test('not failed', () => pm.expect(b.status).to.not.eql('failed'));",
-              "// Если задача ещё не готова — повторяем этот же запрос",
-              "if (b.status !== 'done' && b.status !== 'failed' && b.status !== 'partial') {",
-              "  console.log('Not done yet, polling again...');",
-              "  postman.setNextRequest('2. Poll GET /v1/jobs/{workflow_job_id} (автоповтор до done)');",
-              "} else {",
-              "  console.log('Job finished with status:', b.status);",
-              "}"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const b = pm.response.json();",
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "console.log('Status:', b.status, '| Progress:', b.progress);",
+            "pm.test('not failed', () => pm.expect(b.status).to.not.eql('failed'));",
+            "if (b.status !== 'done' && b.status !== 'failed' && b.status !== 'partial') {",
+            "  postman.setNextRequest('2. Poll GET /v1/jobs/{{workflow_job_id}} (автоповтор до done)');",
+            "} else {",
+            "  console.log('Job finished:', b.status);",
+            "}"
+          ]}}]
         },
         {
-          "name": "3. GET /v1/transcripts/{workflow_job_id} (после done)",
+          "name": "3. GET /v1/transcripts/{{workflow_job_id}}",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/transcripts/{{workflow_job_id}}",
             "header": [{ "key": "Authorization", "value": "Bearer {{api_key}}" }]
           },
-          "event": [{
-            "listen": "test",
-            "script": { "exec": [
-              "pm.test('200', () => pm.response.to.have.status(200));",
-              "const b = pm.response.json();",
-              "pm.test('has speakers', () => pm.expect(b).to.have.property('speakers'));",
-              "pm.test('has segments with words', () => {",
-              "  const segs = b.transcript.segments;",
-              "  pm.expect(segs.length).to.be.above(0);",
-              "  pm.expect(segs[0]).to.have.property('words');",
-              "});"
-            ]}
-          }]
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const b = pm.response.json();",
+            "pm.test('has speakers', () => pm.expect(b).to.have.property('speakers'));",
+            "pm.test('has segments with words', () => {",
+            "  const segs = b.transcript.segments;",
+            "  pm.expect(segs.length).to.be.above(0);",
+            "  pm.expect(segs[0]).to.have.property('words');",
+            "});"
+          ]}}]
         }
       ]
     }
