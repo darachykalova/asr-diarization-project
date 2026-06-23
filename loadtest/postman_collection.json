@@ -263,7 +263,7 @@
           }]
         },
         {
-          "name": "2. Poll GET /v1/jobs/{workflow_job_id}",
+          "name": "2. Poll GET /v1/jobs/{workflow_job_id} (автоповтор до done)",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/jobs/{{workflow_job_id}}",
@@ -275,7 +275,14 @@
               "const b = pm.response.json();",
               "pm.test('200', () => pm.response.to.have.status(200));",
               "console.log('Status:', b.status, 'Progress:', b.progress);",
-              "pm.test('not failed', () => pm.expect(b.status).to.not.eql('failed'));"
+              "pm.test('not failed', () => pm.expect(b.status).to.not.eql('failed'));",
+              "// Если задача ещё не готова — повторяем этот же запрос",
+              "if (b.status !== 'done' && b.status !== 'failed' && b.status !== 'partial') {",
+              "  console.log('Not done yet, polling again...');",
+              "  postman.setNextRequest('2. Poll GET /v1/jobs/{workflow_job_id} (автоповтор до done)');",
+              "} else {",
+              "  console.log('Job finished with status:', b.status);",
+              "}"
             ]}
           }]
         },
