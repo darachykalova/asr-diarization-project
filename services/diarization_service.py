@@ -1,10 +1,10 @@
-import os
 from pathlib import Path
 
 import numpy as np
 import torch
 from scipy.io import wavfile
 
+from services.model_cache import get_pyannote_pipeline
 from services.timing import measure_time
 
 
@@ -17,37 +17,9 @@ class DiarizationService:
     """
 
     DIARIZATION_SOURCE = "pyannote"
-    MODEL_NAME = "pyannote/speaker-diarization-3.1"
-
-    def __init__(self):
-        self.pipeline = None
 
     def _load_pipeline(self):
-        if self.pipeline is not None:
-            return self.pipeline
-
-        hf_token = os.getenv("HF_TOKEN")
-
-        if not hf_token:
-            raise RuntimeError(
-                "HF_TOKEN is not set. "
-                "Set Hugging Face token before running diarization."
-            )
-
-        from pyannote.audio import Pipeline
-
-        self.pipeline = Pipeline.from_pretrained(
-            self.MODEL_NAME,
-            token=hf_token
-        )
-
-        device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
-
-        self.pipeline.to(device)
-
-        return self.pipeline
+        return get_pyannote_pipeline()
 
     def _load_audio_without_torchcodec(
         self,

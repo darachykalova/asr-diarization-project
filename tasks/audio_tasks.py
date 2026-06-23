@@ -192,7 +192,14 @@ def process_audio_task(
         _delete_temp_file(downloaded_audio_path)
 
 
-from celery.signals import task_failure
+from celery.signals import task_failure, worker_process_init
+
+
+@worker_process_init.connect
+def on_worker_process_init(**kwargs):
+    """Log when a new prefork worker process starts up."""
+    import os
+    logger.info("Prefork worker process PID=%s ready", os.getpid())
 
 
 @celery_app.task(name="dead_letter_task", queue="dead_letter")

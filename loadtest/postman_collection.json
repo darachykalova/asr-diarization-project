@@ -1,0 +1,447 @@
+{
+  "info": {
+    "name": "ASR Diarization API — Load Test",
+    "description": "Coverage: all ТЗ endpoints. Use Postman Performance (1 min, 5+ virtual users) to hit 50 req/min target.\n\nSetup: import postman_environment.json, disable SSL verification in Postman Settings.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /healthz",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/healthz"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 ok', () => pm.response.to.have.status(200));",
+                  "pm.test('status=ok', () => { const b = pm.response.json(); pm.expect(b.status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /readyz",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/readyz"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 ready', () => pm.response.to.have.status(200));",
+                  "pm.test('status=ready', () => { const b = pm.response.json(); pm.expect(b.status).to.eql('ready'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth checks",
+      "item": [
+        {
+          "name": "No key → 401",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/transcripts"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401 without key', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "GET /v1/jobs/{done_job_id}",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/jobs/{{done_job_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('has job_id', () => { const b = pm.response.json(); pm.expect(b).to.have.property('job_id'); });",
+                  "pm.test('status=done', () => { const b = pm.response.json(); pm.expect(b.status).to.eql('done'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/jobs/{unknown} → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/jobs/00000000-0000-0000-0000-000000000000",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 for unknown job', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transcripts",
+      "item": [
+        {
+          "name": "GET /v1/transcripts (list)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/transcripts?page=1&page_size=10",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "10" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('has items array', () => { const b = pm.response.json(); pm.expect(b).to.have.property('items'); pm.expect(b.items).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/transcripts/{done_job_id}",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/transcripts/{{done_job_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('has speakers array', () => { const b = pm.response.json(); pm.expect(b).to.have.property('speakers'); });",
+                  "pm.test('has transcript.segments', () => { const b = pm.response.json(); pm.expect(b.transcript.segments).to.be.an('array'); });",
+                  "pm.test('segments have words', () => { const segs = pm.response.json().transcript.segments; if (segs.length > 0) { pm.expect(segs[0]).to.have.property('words'); } });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/transcripts/{id}/segments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/transcripts/{{done_job_id}}/segments?page=1&page_size=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "20" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('has items', () => { const b = pm.response.json(); pm.expect(b).to.have.property('items'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/transcripts/{id}/export?format=srt",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/transcripts/{{done_job_id}}/export?format=srt",
+              "query": [
+                { "key": "format", "value": "srt" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('SRT content-type', () => { pm.expect(pm.response.headers.get('content-type')).to.include('text'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/transcripts/{id}/export?format=vtt",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/transcripts/{{done_job_id}}/export?format=vtt",
+              "query": [
+                { "key": "format", "value": "vtt" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 vtt', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Speakers",
+      "item": [
+        {
+          "name": "GET /v1/speakers (list)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/speakers",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('has items', () => { const b = pm.response.json(); pm.expect(b).to.have.property('items'); pm.expect(b.items).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/speakers/{id}",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/speakers/8",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('has id', () => { const b = pm.response.json(); pm.expect(b).to.have.property('id'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "GET /v1/search?mode=keyword",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/search?q=%D1%83%D1%81%D1%82%D0%B0%D0%BB&mode=keyword",
+              "query": [
+                { "key": "q", "value": "устал" },
+                { "key": "mode", "value": "keyword" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('has results', () => { const b = pm.response.json(); pm.expect(b).to.have.property('results'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/search?mode=semantic",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/search?q=%D1%83%D1%81%D1%82%D0%B0%D0%BB%D1%8B%D0%B9+%D1%87%D0%B5%D0%BB%D0%BE%D0%B2%D0%B5%D0%BA&mode=semantic",
+              "query": [
+                { "key": "q", "value": "усталый человек" },
+                { "key": "mode", "value": "semantic" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API Keys",
+      "item": [
+        {
+          "name": "GET /v1/api-keys",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/api-keys",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "GET /metrics (Prometheus)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/metrics",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('Prometheus format', () => { pm.expect(pm.response.text()).to.include('# HELP'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Submit (async)",
+      "item": [
+        {
+          "name": "POST /v1/transcriptions/upload → 202",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/transcriptions/upload",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "audio_short.mp3",
+                  "description": "Replace with path to a short audio file (5-15 sec)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('202 accepted', () => pm.response.to.have.status(202));",
+                  "pm.test('has job_id', () => { const b = pm.response.json(); pm.expect(b).to.have.property('job_id'); });",
+                  "pm.test('status=queued', () => { const b = pm.response.json(); pm.expect(b.status).to.eql('queued'); });",
+                  "if (pm.response.code === 202) { pm.environment.set('last_job_id', pm.response.json().job_id); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
