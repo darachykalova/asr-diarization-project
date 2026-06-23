@@ -1,722 +1,369 @@
-# ASR Diarization & Semantic Search Service
+# Audio Intelligence API — ASR, Diarization & Search
 
-## Overview
-
-This project is an asynchronous audio processing platform that provides:
-
-* Automatic Speech Recognition (ASR)
-* Speaker Diarization
-* Multilingual Language Detection
-* Semantic Search
-* Keyword Search
-* Hybrid Search
-* Vector Storage using Qdrant
-* Background Processing using Celery
-* Cross-call Speaker Voice Matching
-* API Key Authentication
-
-The service allows users to upload audio files, automatically generate speaker-attributed transcripts, store transcript segments in a vector database, and perform semantic retrieval across processed conversations. It also recognizes the same speaker across multiple calls using voice embeddings.
+Asynchronous audio processing platform: speech recognition, speaker diarization,
+cross-recording speaker identification, and transcript search (keyword / semantic /
+hybrid). Runs fully containerized with Docker Compose, behind nginx with TLS.
 
 ---
 
-# Features
+## Capabilities
 
-## Audio Processing
-
-* Audio file upload via REST API
-* Background task execution using Celery
-* Processing status tracking
-* Transcript persistence in PostgreSQL
-* Audio storage in MinIO
-
-## Speech Recognition
-
-Powered by Faster-Whisper.
-
-Capabilities:
-
-* Automatic language detection
-* Word-level timestamps
-* Multilingual transcription
-* CPU-based inference
-
-Supported languages include:
-
-* English
-* Russian
-* German
-* French
-* Spanish
-
-and all languages supported by Whisper.
+| Area | What it does |
+|------|--------------|
+| **ASR** | faster-whisper transcription with word-level timestamps, automatic language detection (multilingual) |
+| **Diarization** | pyannote.audio 3.1 — detects who spoke when, assigns `SPEAKER_00`, `SPEAKER_01`, ... |
+| **Speaker identification** | SpeechBrain ECAPA-TDNN voice embeddings (192-dim) match the same person across different recordings |
+| **Overlap detection** | flags segments where speakers talk over each other |
+| **Search** | keyword, semantic (sentence-transformers), and hybrid search over all transcripts or a single job |
+| **Export** | transcript export to TXT, SRT, VTT |
+| **Async processing** | Celery + Redis, prefork workers, retry policy + dead-letter queue |
+| **Storage** | PostgreSQL (metadata), MinIO (audio + ML models), Qdrant (text + voice vectors) |
+| **Security** | API-key auth with scopes (read/write/admin), per-key rate limiting, TLS via nginx |
+| **Ops** | `/healthz`, `/readyz`, Prometheus `/metrics`, JSON structured logs, webhook notifications, scheduled backups |
 
 ---
 
-## Speaker Diarization
-
-Powered by pyannote.audio.
-
-Capabilities:
-
-* Automatic speaker detection
-* Dynamic number of speakers
-* Speaker assignment to transcript segments
-* Speaker-aware transcript generation
-
----
-
-## Speaker Voice Matching
-
-The service supports speaker identification across multiple processed calls.
-
-After diarization, local speaker labels such as `SPEAKER_00` and `SPEAKER_01` are processed independently.
-
-The workflow is:
-
-1. extract the longest speech segment for each local speaker;
-2. generate a 512-dimensional voice embedding;
-3. search the `speaker_voices` collection in Qdrant;
-4. match an existing speaker if similarity is high enough;
-5. create a new anonymous speaker if no match is found;
-6. store the speaker occurrence in PostgreSQL;
-7. update transcript segments with the resolved `speaker_id`.
-
-Current configuration:
-
-```python
-VECTOR_SIZE = 512
-MATCH_THRESHOLD = 0.90
-```
-
-To avoid incorrect merging, the system excludes speakers already assigned inside the same call from the next local speaker matching attempt.
-
-The current local Windows implementation avoids the TorchCodec dependency and uses a stable waveform-based embedding extraction approach.
-
----
-
-## Semantic Search
-
-Powered by:
-
-* Sentence Transformers
-* Qdrant
-
-Model:
+## Architecture
 
 ```text
-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
-```
-
-Capabilities:
-
-* Semantic similarity search
-* Multilingual embeddings
-* Search across all conversations
-* Search inside a specific job
-* Hybrid keyword + semantic ranking
-
----
-
-# Architecture
-
-```text
-                        +----------------+
-                        |     Client     |
-                        +-------+--------+
-                                |
-                                v
-                        +----------------+
-                        |    FastAPI     |
-                        +-------+--------+
-                                |
-        +-----------------------+-----------------------+
-        |                       |                       |
-        v                       v                       v
-+---------------+       +---------------+       +---------------+
-|  PostgreSQL   |       |     MinIO     |       |     Redis     |
-| Metadata DB   |       | Audio Storage |       | Task Broker   |
-+---------------+       +---------------+       +-------+-------+
-                                                        |
-                                                        v
-                                                +---------------+
-                                                | Celery Worker |
-                                                +-------+-------+
-                                                        |
-        +-----------------------+-----------------------+-----------------------+
-        |                       |                       |                       |
-        v                       v                       v                       v
-+---------------+       +---------------+       +---------------+       +---------------+
-| Faster-Whisper|       |   PyAnnote    |       | Sentence      |       | Voice         |
-| ASR           |       | Diarization   |       | Transformers  |       | Matching      |
-+---------------+       +---------------+       +---------------+       +---------------+
-        |                       |                       |                       |
-        +-----------------------+-----------------------+-----------------------+
-                                |
-                                v
-                        +---------------+
-                        |    Qdrant     |
-                        | Text + Voice  |
-                        | Vectors       |
-                        +---------------+
+                         HTTPS (443)
+                              │
+                          ┌───▼────┐
+                          │ nginx  │  TLS termination
+                          └───┬────┘
+                              │
+                          ┌───▼────┐
+                          │FastAPI │  api (uvicorn)
+                          └───┬────┘
+            ┌─────────────────┼──────────────────┐
+            │                 │                  │
+       ┌────▼────┐       ┌────▼────┐        ┌────▼────┐
+       │PostgreSQL│      │  MinIO  │        │  Redis  │
+       │ metadata │      │ audio + │        │ broker  │
+       │          │      │ models  │        └────┬────┘
+       └──────────┘      └─────────┘             │
+                                            ┌────▼─────────┐
+                                            │ Celery worker│  prefork ×2
+                                            └────┬─────────┘
+        ┌──────────────┬──────────────┬──────────┴───────┐
+        │              │              │                  │
+  ┌─────▼─────┐  ┌─────▼─────┐  ┌─────▼──────┐    ┌──────▼──────┐
+  │  faster-  │  │ pyannote  │  │ SpeechBrain│    │  sentence-  │
+  │  whisper  │  │diarization│  │ ECAPA-TDNN │    │ transformers│
+  └───────────┘  └───────────┘  └────────────┘    └─────────────┘
+                              │
+                         ┌────▼────┐
+                         │ Qdrant  │  transcript + voice vectors
+                         └─────────┘
 ```
 
 ---
 
-# Project Structure
+## Technology stack
 
-```text
-api/
-├── auth.py
-├── main.py
-└── routes/
-
-database/
-├── crud.py
-├── database.py
-├── init_db.py
-├── models.py
-├── repository.py
-└── session.py
-
-schemas/
-├── transcript_schema.py
-└── api/
-
-services/
-├── alignment_service.py
-├── asr_service.py
-├── audio_segment_extractor.py
-├── audio_service.py
-├── diarization_service.py
-├── embedding_service.py
-├── pipeline_service.py
-├── qdrant_service.py
-├── reindex_service.py
-├── speaker_identification_service.py
-├── text_embedding_service.py
-├── vad_service.py
-├── voice_embedding_service.py
-├── webhook_service.py
-└── worker_job_service.py
-
-tasks/
-├── audio_tasks.py
-
-data/
-├── input/
-├── normalized/
-├── output/
-└── temp_voice/
-
-docker-compose.yml
-requirements.txt
-README.md
-```
+- **API**: Python 3.12, FastAPI, Uvicorn, nginx (TLS)
+- **ASR / diarization**: faster-whisper, pyannote.audio 4.0.5
+- **Embeddings**: SpeechBrain ECAPA-TDNN (voice), sentence-transformers (text)
+- **Async**: Celery 5.6, Redis
+- **Data**: PostgreSQL 16, MinIO, Qdrant
+- **Security/ops**: slowapi (rate limiting), prometheus-fastapi-instrumentator
+- **Infra**: Docker, Docker Compose
 
 ---
 
-# Technology Stack
+## Quick start (Docker)
 
-## Backend
+Everything runs in containers. You only need Docker Desktop and a Hugging Face token.
 
-* Python 3.12
-* FastAPI
-* Uvicorn
+### 1. Prerequisites
 
-## Speech Processing
+- Docker Desktop (WSL2 backend on Windows, **6 GB RAM** allocated — see note below)
+- A Hugging Face account with accepted licences for:
+  - `pyannote/speaker-diarization-3.1`
+  - `pyannote/segmentation-3.0`
 
-* Faster-Whisper
-* Pyannote Audio
+### 2. Configure environment
 
-## Vector Search
+Create a `.env` file in the project root:
 
-* Qdrant
-* Sentence Transformers
+```env
+POSTGRES_DB=asr_db
+POSTGRES_USER=asr_user
+POSTGRES_PASSWORD=asr_password
 
-## Database and Storage
+DATABASE_URL=postgresql+psycopg://asr_user:asr_password@postgres:5432/asr_db
+REDIS_URL=redis://redis:6379/0
+REDIS_BACKEND_URL=redis://redis:6379/1
 
-* PostgreSQL
-* MinIO
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+
+MINIO_ENDPOINT=minio:9000
+MINIO_ACCESS_KEY=admin
+MINIO_SECRET_KEY=admin12345
+MINIO_BUCKET=audio-files
+MINIO_MODELS_BUCKET=ml-models
+
+HF_TOKEN=hf_your_token_here
+SPEAKER_MATCH_THRESHOLD=0.70
+LOG_LEVEL=INFO
+```
+
+> `.env` is git-ignored and must never be committed.
+
+### 3. Build and start
+
+Pass `HF_TOKEN` at build time so gated pyannote models are baked into the image:
+
+```bash
+docker compose build --build-arg HF_TOKEN=hf_your_token_here
+docker compose up -d
+```
+
+Models (faster-whisper, pyannote, SpeechBrain, sentence-transformers) are downloaded
+**once at build time** into the image and a Docker volume. At runtime the containers
+run with `HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1` — they never call out to
+huggingface.co.
+
+### 4. Verify
+
+```bash
+docker compose ps          # all services healthy
+curl -k https://localhost/healthz
+# {"status":"ok","service":"Audio Intelligence API"}
+```
+
+| Service | URL |
+|---------|-----|
+| API (Swagger) | `https://localhost/docs` |
+| Qdrant dashboard | `http://localhost:6333/dashboard` |
+| MinIO console | `http://localhost:9001` |
+| Prometheus (monitoring profile) | `http://localhost:9090` |
+| Grafana (monitoring profile) | `http://localhost:3000` |
+
+The TLS certificate is self-signed for `localhost`, so `curl -k` / "click through"
+the browser warning is expected.
+
+> **Windows memory note:** pyannote diarization peaks around ~2.5 GB per worker.
+> Create `C:\Users\<you>\.wslconfig` with `[wsl2]` `memory=6GB`, then
+> `wsl --shutdown` and restart Docker Desktop.
+
+---
 
 ## Authentication
 
-* API Key authentication
-* Bearer token authorization
-
-## Background Processing
-
-* Celery
-* Redis
-
-## Infrastructure
-
-* Docker
-* Docker Compose
-
----
-
-# Installation
-
-## Clone Repository
-
-```bash
-git clone <repository-url>
-cd asr_diarization_project
-```
-
-## Create Virtual Environment
-
-```bash
-python -m venv venv
-```
-
-## Activate Environment
-
-Windows PowerShell:
-
-```powershell
-.\venv\Scripts\Activate.ps1
-```
-
-## Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-# Infrastructure Setup
-
-Start all infrastructure services:
-
-```bash
-docker compose up -d
-```
-
-The project uses:
-
-* PostgreSQL — metadata storage
-* Redis — Celery broker
-* Qdrant — vector database
-* MinIO — object storage
-
-Verify services:
-
-```bash
-docker ps
-```
-
-Qdrant:
-
-```text
-http://localhost:6333/dashboard
-```
-
-MinIO Console:
-
-```text
-http://localhost:9001
-```
-
-PostgreSQL:
-
-```bash
-docker exec -it asr_diarization_project-postgres-1 psql -U asr_user -d asr_db
-```
-
----
-
-# Hugging Face Token
-
-Speaker diarization requires a Hugging Face access token.
-
-PowerShell:
-
-```powershell
-$env:HF_TOKEN="your_hugging_face_token"
-```
-
-The token must have access to:
-
-* pyannote/speaker-diarization-3.1
-* pyannote/segmentation-3.0
-
-The token is required for PyAnnote diarization models.
-
-Voice matching in the current Windows-compatible local implementation does not require TorchCodec.
-
----
-
-# Running the Application
-
-## Start Celery Worker
-
-```bash
-celery -A tasks.audio_tasks worker --loglevel=info --pool=solo
-```
-
-## Start FastAPI
-
-Open a second terminal:
-
-```bash
-uvicorn api.main:app --host 0.0.0.0 --port 8000
-```
-
----
-
-# Quick Start
-
-Open three terminals.
-
-### Terminal 1 — Infrastructure
-
-```bash
-docker compose up -d
-```
-
-### Terminal 2 — Celery Worker
-
-```powershell
-$env:HF_TOKEN="your_hugging_face_token"
-
-celery -A tasks.audio_tasks worker --loglevel=info --pool=solo
-```
-
-### Terminal 3 — FastAPI
-
-```bash
-uvicorn api.main:app --host 0.0.0.0 --port 8000
-```
-
-After startup:
-
-Swagger UI:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-Qdrant Dashboard:
-
-```text
-http://localhost:6333/dashboard
-```
-
----
-
-# API Documentation
-
-Swagger UI:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
----
-
-# API Authentication
-
-Protected endpoints require an API key.
-
-Authorization format:
+All `/v1/*` endpoints (except health) require an API key:
 
 ```http
 Authorization: Bearer <api_key>
 ```
 
-API keys are stored in PostgreSQL.
-
-A helper script can be used to create API keys:
+Keys are stored in PostgreSQL with a scope (`read` / `write` / `admin`) and a
+per-key rate limit. Create the first admin key with the helper script:
 
 ```bash
-python scripts/create_api_key.py
+docker compose exec api python scripts/create_api_key.py
 ```
 
-Use the generated raw key only once and store it safely.
+The raw key is shown once — store it safely.
 
 ---
 
-# API Endpoints
+## API endpoints
 
-## Health
-
+### Health & ops (no auth)
 ```http
-GET /
+GET /healthz
+GET /readyz
+GET /metrics
 ```
 
-## Transcriptions
-
+### Transcriptions
 ```http
-POST /v1/transcriptions/upload
+POST /v1/transcriptions/upload      # multipart file upload  -> 202
+POST /v1/transcriptions             # by URL / options        -> 202
 ```
 
-## Jobs
-
+### Jobs
 ```http
-GET /v1/jobs/{job_id}
+GET /v1/jobs/{job_id}               # status + progress (queued/processing/done/failed/partial)
 ```
 
-## Transcripts
-
+### Transcripts
 ```http
-GET /v1/transcripts/{job_id}
-DELETE /v1/transcripts/{job_id}
+GET    /v1/transcripts                          # paginated list
+GET    /v1/transcripts/{job_id}                 # full transcript + speakers[]
+GET    /v1/transcripts/{job_id}/segments        # paginated segments
+GET    /v1/transcripts/{job_id}/export?format=  # txt | srt | vtt
+DELETE /v1/transcripts/{job_id}                 # GDPR delete: DB + MinIO + Qdrant
 ```
 
-## Calls
-
+### Search
 ```http
-GET /v1/calls/{job_id}
-GET /v1/calls/search
+GET /v1/search?q=...&mode=keyword|semantic|hybrid&job_id=&speaker=&limit=
 ```
 
-## Speakers
-
+### Speakers
 ```http
-GET /v1/speakers
-POST /v1/speakers
-PATCH /v1/speakers/{speaker_id}
-DELETE /v1/speakers/{speaker_id}
+GET    /v1/speakers                 # registry of known speakers
+POST   /v1/speakers                 # register (optionally with reference audio)
+PATCH  /v1/speakers/{speaker_id}    # rename / merge
+DELETE /v1/speakers/{speaker_id}    # remove + purge voice vectors
 ```
 
-## API Keys
-
+### API keys
 ```http
-POST /v1/api-keys
-GET /v1/api-keys
+POST   /v1/api-keys
+GET    /v1/api-keys
 DELETE /v1/api-keys/{key_id}
 ```
 
----
-
-# Processing Workflow
-
-1. Upload audio file.
-2. Store audio in MinIO and create job record.
-3. Create processing task.
-4. Execute transcription.
-5. Execute speaker diarization.
-6. Align speakers with transcript segments.
-7. Generate text embeddings.
-8. Extract voice embeddings and resolve speaker identity.
-9. Store transcript segments in Qdrant.
-10. Return transcript and search availability.
+Full interactive docs: `https://localhost/docs`.
 
 ---
 
-# Search Modes
+## Processing workflow
 
-## Keyword Search
-
-Exact text matching.
-
-Example:
-
-```text
-мошенники
-```
-
----
-
-## Semantic Search
-
-Embedding similarity search.
-
-Example:
-
-```text
-обман
-```
-
-Can return:
-
-```text
-Это мошенники
-Не дайте себя обмануть
-```
+1. Client uploads audio → stored in MinIO, job record created (`202 Accepted`).
+2. Celery task picked up by a prefork worker.
+3. Audio normalized to 16 kHz mono WAV.
+4. faster-whisper transcribes with word-level timestamps.
+5. pyannote diarizes → local speaker labels + overlap flags.
+6. Speakers aligned to transcript segments.
+7. SpeechBrain extracts a voice embedding per local speaker; Qdrant `speaker_voices`
+   is searched to resolve a global `speaker_id` (or a new anonymous speaker is created).
+8. Text embeddings stored in Qdrant `transcript_segments`.
+9. Transcript + segments persisted to PostgreSQL.
+10. Optional webhook fired (HMAC-SHA256 signed) on completion.
 
 ---
 
-## Hybrid Search
+## Reliability
 
-Combines:
-
-* keyword relevance
-* semantic similarity
-
-Provides the most accurate ranking.
-
----
-
-# Search Scope
-
-The search endpoint supports two modes.
-
-### Global Search
-
-Search across all processed conversations.
-
-```text
-job_id = null
-```
-
-### Job-Specific Search
-
-Search inside a single conversation.
-
-```text
-job_id = <job_uuid>
-```
+- **Retry policy** — `process_audio_task` auto-retries transient failures
+  (`autoretry_for`, `max_retries=2`, exponential `retry_backoff` + jitter).
+- **Dead-letter queue** — after retries are exhausted, the job is routed to the
+  `dead_letter` queue, logged, and marked `failed` with `error_code=MAX_RETRIES_EXCEEDED`.
+- **Crash safety** — `task_acks_late=True` and `task_reject_on_worker_lost=True`
+  so a job killed mid-flight (e.g. OOM) is requeued, not lost.
 
 ---
 
-# Output Artifacts
+## Worker scaling & model storage
 
-For every processed job the system stores:
+The worker runs `--pool=prefork --concurrency=2 --max-tasks-per-child=10`. Each
+process caches its models after the first task (`services/model_cache.py`), so models
+are loaded once per process, not per job. Concurrency is capped at 2 because each
+pyannote worker uses ~2.5 GB RAM (6 GB Docker ceiling).
 
-* uploaded audio in MinIO
-* normalized audio
-* transcript JSON
-* job status in PostgreSQL
-* transcript segments in PostgreSQL
-* transcript vectors in Qdrant
-* speaker occurrences in PostgreSQL
-* speaker voice vectors in Qdrant
-
-Main Qdrant collections:
-
-```text
-transcript_segments
-speaker_voices
-```
-
----
-
-# Troubleshooting
-
-## HF_TOKEN is not set
-
-Speaker diarization models cannot be loaded.
-
-Solution:
-
-```powershell
-$env:HF_TOKEN="your_hugging_face_token"
-```
-
----
-
-## Redis Connection Error
-
-Verify that Redis is running:
+ML models can be stored in MinIO (bucket `ml-models`) instead of relying solely on the
+image/volume — useful when scaling workers across machines:
 
 ```bash
-docker compose up -d
+# upload models to MinIO once
+docker compose run --rm worker python scripts/upload_models_to_minio.py
+```
+
+On startup each worker runs `scripts/sync_models_from_minio.py`: if models are already
+present locally it skips, otherwise it downloads them from MinIO before starting Celery.
+
+---
+
+## Optional profiles
+
+```bash
+# Monitoring: Prometheus + Grafana
+docker compose --profile monitoring up -d
+
+# Backups: scheduled pg_dump + MinIO mirror (cron, 02:00 daily)
+docker compose --profile backup up -d
 ```
 
 ---
 
-## Qdrant Connection Error
+## Load testing
 
-Verify that Qdrant is available:
+A Postman collection lives in `loadtest/`. See `loadtest/README.md` for setup.
+Read-only endpoints sustain ~130 req/sec with 0% errors at 5 virtual users
+(target was 50 req/min).
+
+---
+
+## Project structure
 
 ```text
-http://localhost:6333/dashboard
+api/
+├── auth.py                 # API-key auth, scopes
+├── main.py                 # FastAPI app, rate limiting, metrics, startup
+└── routes/                 # transcriptions, jobs, transcripts, calls,
+                            # speakers, search, api_keys, health
+
+services/
+├── asr_service.py          # faster-whisper wrapper (cached model)
+├── diarization_service.py  # pyannote wrapper (cached pipeline)
+├── voice_embedding_service.py   # SpeechBrain ECAPA-TDNN (192-dim)
+├── text_embedding_service.py    # sentence-transformers
+├── speaker_identification_service.py
+├── alignment_service.py    # map speakers onto transcript segments
+├── vad_service.py
+├── pipeline_service.py     # orchestrates the full job
+├── worker_job_service.py
+├── qdrant_service.py / async_qdrant_service.py
+├── model_cache.py          # per-process model singletons
+├── webhook_service.py
+└── ...
+
+tasks/audio_tasks.py        # Celery tasks, retry policy, DLQ
+clients/minio_client.py     # MinIO storage + lifecycle
+database/                   # SQLAlchemy models, repository, init
+schemas/                    # Pydantic request/response models
+scripts/
+├── create_api_key.py
+├── download_models.py            # build-time model download
+├── upload_models_to_minio.py     # push models to MinIO
+└── sync_models_from_minio.py     # pull models on worker startup
+
+nginx/                      # TLS reverse proxy config + certs (certs git-ignored)
+monitoring/                 # Prometheus + Grafana config
+backup/                     # backup container (pg_dump + mc mirror)
+loadtest/                   # Postman collection + environment
+docker-compose.yml
+Dockerfile
+requirements.txt
 ```
 
 ---
 
-## mkl_malloc: failed to allocate memory
+## Troubleshooting
 
-The machine does not have enough RAM for the selected Whisper model.
+**`HF_TOKEN is not set` / diarization fails**
+Rebuild with the token so gated models are baked in:
+`docker compose build --build-arg HF_TOKEN=hf_xxx`.
 
-Possible solutions:
+**Worker OOM / killed mid-job**
+Raise Docker memory to 6 GB (`.wslconfig` on Windows) and restart Docker Desktop.
+Jobs that were processing are requeued automatically (`task_reject_on_worker_lost`).
 
-* Use a smaller model (`tiny` or `base`)
-* Close memory-intensive applications
-* Increase available system memory
+**nginx 502 after restarting `api`**
+nginx caches the old container IP. `docker compose restart nginx`.
 
----
+**Swagger page is blank without internet**
+`/docs` loads UI assets from a CDN. The API itself works offline; this only affects
+the docs page rendering.
 
-## TorchCodec Error on Windows
-
-If TorchCodec breaks startup or speaker matching, remove it:
-
-```powershell
-pip uninstall torchcodec -y
-```
-
-The local Windows setup uses:
-
-```text
-torch==2.11.0
-torchaudio==2.11.0
-```
-
-Do not install speechbrain or torchcodec for the current local Windows configuration.
-
-## Voice Matching Does Not Match Speakers
-
-Check Celery logs for:
-
-```text
-Voice embedding extracted: dim=512
-matched SPEAKER_00 to speaker_id=...
-```
-
-Check PostgreSQL:
-
-```sql
-SELECT *
-FROM occurrences
-ORDER BY id DESC
-LIMIT 12;
-```
+**Redis / Qdrant connection errors**
+Ensure the full stack is up: `docker compose up -d` and check `docker compose ps`.
 
 ---
 
-# Current Status
+## Status
 
-The project is fully functional and currently supports:
+All core functional requirements are implemented and verified end-to-end:
+async upload, multilingual ASR with word timestamps, diarization, overlap flags,
+cross-recording speaker identification, partial results, voice registry, GDPR delete,
+webhooks, keyword/semantic/hybrid search, SRT/VTT/TXT export, API-key auth with scopes
+and rate limiting, health/readiness probes, Prometheus metrics, structured JSON logs,
+scheduled backups, and monitoring.
 
-* asynchronous audio processing
-* audio upload through REST API
-* MinIO audio object storage
-* PostgreSQL metadata storage
-* Redis-based task queue
-* Celery background processing
-* multilingual speech recognition
-* voice activity detection
-* speaker diarization
-* transcript generation
-* speaker-aware transcript segments
-* semantic search
-* keyword search
-* hybrid search
-* Qdrant vector storage
-* API key authentication
-* transcript deletion
-* pagination for call segments
-* speaker management
-* speaker occurrence tracking
-* cross-call speaker voice matching
-* webhook notifications
-
----
-
-# Future Improvements
-
-Potential future improvements:
-
-* speaker profile management UI
-* improved production-grade speaker embedding backend
-* better confidence calibration
-* LLM-based transcript enrichment
-* transcript summarization
-* sentiment analysis
-* conversation analytics dashboards
-* real-time streaming transcription
-* GPU worker scaling
-* advanced monitoring and observability
+**Not yet implemented:** stereo-telephony "channel = speaker" mode (FR-8); offline
+Swagger asset bundling; GPU worker image.
