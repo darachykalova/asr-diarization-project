@@ -68,9 +68,10 @@ class SpeakersPageResponse(BaseModel):
 
 
 class RecordingResponse(BaseModel):
-    id: int
     job_id: str
     filename: str
+    local_label: str
+    match_score: Optional[float]
     created_at: datetime
 
     model_config = {
