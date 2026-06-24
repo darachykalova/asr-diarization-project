@@ -45,6 +45,7 @@ sqlalchemy
 psycopg[binary]
 minio==7.2.18
 pydub==0.25.1
+soundfile==0.14.0
 torch==2.11.0+cpu
 torchaudio==2.11.0+cpu
 transformers==5.10.2
