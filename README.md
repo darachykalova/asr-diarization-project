@@ -249,23 +249,74 @@ Full interactive docs: `https://localhost/docs`.
 
 ---
 
-## Worker scaling & model storage
+## Performance & hardware limits
+
+### What the system is bound by
+
+Audio processing is a sequential CPU-bound pipeline:
+
+```
+Normalize → VAD → Whisper (ASR) → pyannote (diarization) → Alignment → Embeddings
+```
+
+Whisper and pyannote together account for ~95% of processing time. Both run neural
+network inference on CPU — there is no async or threading trick that speeds them up.
+The only way to make a single task faster is more CPU cores or a GPU.
+
+### Measured throughput (CPU-only, no GPU)
+
+Tests run on 8-core laptop, WSL2 allocated 6 cores, Docker worker `concurrency=2`.
+Audio file: 15-second MP3.
+
+| Mode | Processing time | Ratio (processing / audio duration) |
+|------|----------------|--------------------------------------|
+| **Single speaker** (`max_speakers=1`, diarization skipped) | ~107 s | **×7** |
+| **Multi-speaker** (pyannote diarization enabled) | ~370 s | **×25** |
+| **Combined average** | ~240 s | **×16** |
+
+Two jobs submitted in parallel finish in the same wall time (both workers are busy),
+so **throughput doubles** with 2 workers even though individual job time is unchanged.
+
+### Why `max_speakers=1` is 3× faster
+
+When the caller signals a single speaker, pyannote is skipped entirely
+(`pipeline_service.py`). This removes the heaviest step and cuts processing time
+from ~370 s to ~107 s for a 15-second clip.
+
+### Hardware limits and concurrency
+
+| Resource | Current | Limit / reason |
+|----------|---------|----------------|
+| CPU cores (WSL2) | 6 | `processors=6` in `~/.wslconfig`; 2 left for Windows |
+| RAM (WSL2) | 6 GB | `memory=6GB` in `~/.wslconfig` |
+| Worker concurrency | 2 | Each worker loads all ML models (~1.5 GB each); a 3rd worker would exhaust RAM |
+| GPU | none | No NVIDIA GPU — all inference runs on CPU |
+
+**What would actually speed things up:**
+
+| Change | Expected gain |
+|--------|--------------|
+| NVIDIA GPU (RTX 3060+) | ×10–15 per task |
+| More RAM → 3rd worker | +50% throughput (not per-task speed) |
+| Whisper `tiny` instead of `base` | ×2 per task, slightly lower accuracy |
+| Second machine with its own worker | ×2 throughput (workers share one Redis queue) |
+
+### Worker scaling & model storage
 
 The worker runs `--pool=prefork --concurrency=2 --max-tasks-per-child=10`. Each
 process caches its models after the first task (`services/model_cache.py`), so models
-are loaded once per process, not per job. Concurrency is capped at 2 because each
-pyannote worker uses ~2.5 GB RAM (6 GB Docker ceiling).
+are loaded once per process, not per job.
 
-ML models can be stored in MinIO (bucket `ml-models`) instead of relying solely on the
-image/volume — useful when scaling workers across machines:
+ML models are stored in MinIO (bucket `ml-models`) so that additional workers on other
+machines can download them without rebuilding the Docker image:
 
 ```bash
-# upload models to MinIO once
+# upload models to MinIO once (already done)
 docker compose run --rm worker python scripts/upload_models_to_minio.py
 ```
 
-On startup each worker runs `scripts/sync_models_from_minio.py`: if models are already
-present locally it skips, otherwise it downloads them from MinIO before starting Celery.
+On startup each worker runs `scripts/sync_models_from_minio.py`: skips download if
+models are already present locally, otherwise pulls from MinIO before starting Celery.
 
 ---
 
