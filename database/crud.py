@@ -8,6 +8,7 @@ from database.models import (
     Occurrence,
     Recording,
     Speaker,
+    Transcript,
     TranscriptSegment,
 )
 
@@ -270,13 +271,31 @@ def create_recording(
 def get_recordings_by_speaker(
     db: Session,
     speaker_id: int
-) -> list[Recording]:
-    return (
-        db.query(Recording)
-        .filter(Recording.speaker_id == speaker_id)
-        .order_by(Recording.id)
+) -> list[dict]:
+    rows = (
+        db.query(
+            Recording.job_id,
+            Recording.filename,
+            Recording.created_at,
+            Occurrence.local_label,
+            Occurrence.match_score,
+        )
+        .join(Transcript, Transcript.job_id == Recording.job_id)
+        .join(Occurrence, Occurrence.transcript_id == Transcript.id)
+        .filter(Occurrence.speaker_id == speaker_id)
+        .order_by(Recording.created_at)
         .all()
     )
+    return [
+        {
+            "job_id": r.job_id,
+            "filename": r.filename,
+            "created_at": r.created_at,
+            "local_label": r.local_label,
+            "match_score": r.match_score,
+        }
+        for r in rows
+    ]
 
 
 def get_recording_by_job_id(
