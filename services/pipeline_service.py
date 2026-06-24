@@ -130,17 +130,31 @@ class PipelineService:
         diarization_error: str | None = None
         speaker_segments = []
 
-        try:
+        if self.max_speakers == 1:
+            # Single-speaker mode: skip pyannote entirely, assign SPEAKER_00 to full audio.
+            # Saves ~80% of processing time on CPU.
             self._report(60)
-            speaker_segments = self.diarization_service.diarize(
-                audio_path=normalized_file,
-                speech_segments=speech_segments,
-                min_speakers=self.min_speakers,
-                max_speakers=self.max_speakers,
-            )
-        except Exception as exc:
-            diarization_error = f"diarization failed: {exc}"
-            logger.warning("Diarization failed, continuing without speaker labels: %s", exc)
+            start = float(asr_segments[0]["start"]) if asr_segments else 0.0
+            end = float(asr_segments[-1]["end"]) if asr_segments else duration_sec
+            speaker_segments = [{
+                "start": start,
+                "end": end,
+                "speaker": "SPEAKER_00",
+                "diarization_source": "single_speaker",
+            }]
+            logger.info("Single-speaker mode: skipping diarization, assigned SPEAKER_00")
+        else:
+            try:
+                self._report(60)
+                speaker_segments = self.diarization_service.diarize(
+                    audio_path=normalized_file,
+                    speech_segments=speech_segments,
+                    min_speakers=self.min_speakers,
+                    max_speakers=self.max_speakers,
+                )
+            except Exception as exc:
+                diarization_error = f"diarization failed: {exc}"
+                logger.warning("Diarization failed, continuing without speaker labels: %s", exc)
 
         self._report(75)
         diarized_segments = self.diarization_service.assign_speakers_to_asr_segments(
