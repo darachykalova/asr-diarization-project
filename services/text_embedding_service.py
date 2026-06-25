@@ -23,6 +23,9 @@ class TextEmbeddingService:
 
     def __init__(self):
         if TextEmbeddingService._model is None:
+            from services.model_registry import ensure_model
+            # Fail fast if the model is not present locally (offline mode).
+            ensure_model("sentence-transformers")
             logger.info(
                 "Loading SentenceTransformer model from %s",
                 self.MODEL_NAME

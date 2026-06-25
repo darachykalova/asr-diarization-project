@@ -18,3 +18,7 @@ data/normalized/
 build*.log
 nginx/certs/*.key
 nginx/certs/*.crt
+
+# Local model backup (large, do not commit)
+models_backup/
+*.tgz
