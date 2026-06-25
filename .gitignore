@@ -22,3 +22,9 @@ nginx/certs/*.crt
 # Local model backup (large, do not commit)
 models_backup/
 *.tgz
+
+# ASR quality benchmark — keep built-in samples, ignore downloaded CV clips and results
+!tests/asr_quality/audio/audio_short_15s.mp3
+tests/asr_quality/audio/cv_*.wav
+tests/asr_quality/audio/cv_*.mp3
+tests/asr_quality/results/
