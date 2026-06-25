@@ -129,6 +129,7 @@ services:
       OMP_NUM_THREADS: "4"
       MKL_NUM_THREADS: "4"
       MINIO_MODELS_BUCKET: "ml-models"
+      PIPELINE_MODE: "chain"
     mem_limit: 5g
     volumes:
       - ./data:/app/data
