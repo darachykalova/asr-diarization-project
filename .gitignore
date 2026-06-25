@@ -27,4 +27,6 @@ models_backup/
 !tests/asr_quality/audio/audio_short_15s.mp3
 tests/asr_quality/audio/cv_*.wav
 tests/asr_quality/audio/cv_*.mp3
+tests/asr_quality/audio/fleurs_test_*.wav
+tests/asr_quality/references/fleurs_test_*.txt
 tests/asr_quality/results/
