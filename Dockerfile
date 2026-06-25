@@ -21,14 +21,6 @@ ENV HF_HUB_DISABLE_XET=1
 
 # Copy download script before the full source copy so Docker can cache the
 # model layer independently of source code changes.
-COPY scripts/download_models.py scripts/download_models.py
-
-# Pass HF_TOKEN at build time to pre-download gated pyannote model:
-#   docker compose build --build-arg HF_TOKEN=hf_xxx
-# Without it, pyannote is skipped here and downloaded on first container run.
-ARG HF_TOKEN=""
-RUN HF_TOKEN="$HF_TOKEN" python scripts/download_models.py
-
 COPY . .
 
 EXPOSE 8000

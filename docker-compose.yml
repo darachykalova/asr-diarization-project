@@ -84,8 +84,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        HF_TOKEN: ${HF_TOKEN:-}
     image: asr-app
     restart: unless-stopped
     env_file:
@@ -100,6 +98,7 @@ services:
     volumes:
       - ./data:/app/data
       - models_cache:/app/models
+      - ./models_backup:/app/models_backup:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -111,7 +110,9 @@ services:
         condition: service_healthy
     expose:
       - "8000"
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    command: >
+      sh -c "python scripts/sync_models_from_minio.py &&
+             uvicorn api.main:app --host 0.0.0.0 --port 8000"
     networks:
       - asr-net
 
@@ -132,6 +133,7 @@ services:
     volumes:
       - ./data:/app/data
       - models_cache:/app/models
+      - ./models_backup:/app/models_backup:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -141,9 +143,9 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-    # sync models from MinIO on startup (skips if models already present locally)
     command: >
       sh -c "python scripts/sync_models_from_minio.py &&
+             python scripts/verify_models.py &&
              python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=prefork --concurrency=2 --max-tasks-per-child=10"
     networks:
       - asr-net

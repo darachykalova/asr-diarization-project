@@ -70,6 +70,13 @@ async def audit_log_middleware(request: Request, call_next):
 async def startup():
     logger = logging.getLogger(__name__)
 
+    # Pre-flight: refuse to start if required ML models are missing locally
+    # (offline mode — Hugging Face is never contacted at runtime).
+    from services.model_registry import ensure_available
+    logger.info("Verifying required ML models are present locally...")
+    ensure_available()
+    logger.info("All required ML models present.")
+
     logger.info("Initializing database tables...")
     await run_in_threadpool(init_db)
     logger.info("Database tables initialized.")

@@ -18,6 +18,9 @@ class VoiceEmbeddingService:
 
     def __init__(self):
         if VoiceEmbeddingService._model is None:
+            from services.model_registry import ensure_model
+            # Fail fast if the model is not present locally (offline mode).
+            ensure_model("speechbrain-ecapa")
             from speechbrain.inference.speaker import EncoderClassifier
             logger.info("Loading SpeechBrain ECAPA-TDNN model...")
             VoiceEmbeddingService._model = EncoderClassifier.from_hparams(

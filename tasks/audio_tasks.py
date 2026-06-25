@@ -1,9 +1,11 @@
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
+from celery import chain as celery_chain
 from celery_app.app import celery_app
 from clients.minio_client import MinioStorageClient
 from database import crud
@@ -12,6 +14,51 @@ from services.webhook_service import send_webhook
 from services.worker_job_service import WorkerJobService
 
 logger = logging.getLogger(__name__)
+
+PIPELINE_MODE = os.getenv("PIPELINE_MODE", "monolith")
+
+
+def build_pipeline_chain(
+    job_id: str,
+    input_key: str,
+    language: str | None = None,
+    min_speakers: int | None = None,
+    max_speakers: int | None = None,
+    model_size: str = "base",
+    initial_prompt: str | None = None,
+    webhook_url: str | None = None,
+):
+    from tasks.pipeline_tasks import (
+        normalize_task, asr_task, diarize_task,
+        merge_align_task, persist_task,
+        identify_speakers_task, finalize_task,
+        chain_error_handler,
+    )
+
+    ctx = {
+        "job_id": job_id,
+        "input_key": input_key,
+        "params": {
+            "language": language,
+            "min_speakers": min_speakers,
+            "max_speakers": max_speakers,
+            "model_size": model_size,
+            "initial_prompt": initial_prompt,
+            "webhook_url": webhook_url,
+        },
+    }
+
+    error_cb = chain_error_handler.s(job_id=job_id)
+
+    return celery_chain(
+        normalize_task.s(ctx),
+        asr_task.s(),
+        diarize_task.s(),
+        merge_align_task.s(),
+        persist_task.s(),
+        identify_speakers_task.s(),
+        finalize_task.s(),
+    ).on_error(error_cb)
 
 
 def _update_job_status_safely(

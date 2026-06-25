@@ -12,3 +12,5 @@ data/normalized/
 
 .cache/
 .env
+models_backup/
+loadtest/

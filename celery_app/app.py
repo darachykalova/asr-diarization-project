@@ -17,7 +17,8 @@ REDIS_BACKEND_URL = os.getenv(
 celery_app = Celery(
     "asr_diarization_worker",
     broker=REDIS_URL,
-    backend=REDIS_BACKEND_URL
+    backend=REDIS_BACKEND_URL,
+    include=["tasks.audio_tasks", "tasks.pipeline_tasks"],
 )
 
 celery_app.conf.update(
@@ -33,6 +34,14 @@ celery_app.conf.update(
     ),
     task_default_queue="default",
     task_routes={
-        "process_audio_task": {"queue": "default"},
+        "process_audio_task":              {"queue": "default"},
+        "pipeline.normalize":              {"queue": "default"},
+        "pipeline.asr":                    {"queue": "default"},
+        "pipeline.diarize":                {"queue": "default"},
+        "pipeline.merge_align":            {"queue": "default"},
+        "pipeline.persist":                {"queue": "default"},
+        "pipeline.identify_speakers":      {"queue": "default"},
+        "pipeline.finalize":               {"queue": "default"},
+        "pipeline.chain_error_handler":    {"queue": "default"},
     },
 )

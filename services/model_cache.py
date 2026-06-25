@@ -13,6 +13,11 @@ def get_whisper_model(model_size: str = "base"):
     """Return a cached WhisperModel for this worker process, loading on first call."""
     global _whisper_models
     if model_size not in _whisper_models:
+        from services.model_registry import ensure_model
+        # Fail fast with a clear message if the model is not present locally
+        # (offline mode — Hugging Face is never contacted at runtime).
+        if model_size == "base":
+            ensure_model("whisper")
         from faster_whisper import WhisperModel
         cache_dir = os.getenv("MODEL_CACHE_DIR", "/app/models")
         logger.info("Worker process: loading Whisper model '%s' into cache", model_size)
@@ -30,6 +35,10 @@ def get_pyannote_pipeline():
     """Return a cached pyannote Pipeline for this worker process, loading on first call."""
     global _pyannote_pipeline
     if _pyannote_pipeline is None:
+        from services.model_registry import ensure_model
+        # Fail fast if the diarization models are not present locally (offline mode).
+        ensure_model("pyannote-diarization")
+        ensure_model("pyannote-segmentation")
         hf_token = os.getenv("HF_TOKEN")
         if not hf_token:
             raise RuntimeError(

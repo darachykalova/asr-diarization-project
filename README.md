@@ -318,6 +318,49 @@ docker compose run --rm worker python scripts/upload_models_to_minio.py
 On startup each worker runs `scripts/sync_models_from_minio.py`: skips download if
 models are already present locally, otherwise pulls from MinIO before starting Celery.
 
+### Offline guarantee & model verification
+
+The service **never contacts Hugging Face at runtime** (`HF_HUB_OFFLINE=1` /
+`TRANSFORMERS_OFFLINE=1`). All five models are loaded only from the local
+`models_cache` volume, so if huggingface.co is down the program keeps working.
+
+The five required models (single source of truth: `services/model_registry.py`):
+
+| Model | Used for | Local path (under `/app/models`) |
+|-------|----------|----------------------------------|
+| faster-whisper base | ASR | `whisper/models--Systran--faster-whisper-base` |
+| pyannote/speaker-diarization-3.1 | diarization | `hf/hub/models--pyannote--speaker-diarization-3.1` |
+| pyannote/segmentation-3.0 | diarization (dep) | `hf/hub/models--pyannote--segmentation-3.0` |
+| speechbrain/spkrec-ecapa-voxceleb | voice embeddings | `spkrec-ecapa-voxceleb/embedding_model.ckpt` |
+| sentence-transformers MiniLM-L12-v2 | semantic search | `hf/hub/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2` |
+
+**Fail-fast verification.** On startup the worker runs `scripts/verify_models.py`
+(and the API calls `model_registry.ensure_available()`). If any model is missing
+locally the service **refuses to start** with a clear message naming the model and
+how to obtain it — instead of failing later with a cryptic offline-cache error.
+The same guard runs at the point of use in each model loader.
+
+```bash
+# manual check — exits 0 if all present, 1 (with details) if any missing
+docker compose exec worker python scripts/verify_models.py
+```
+
+**Keeping a local copy that survives `docker compose down -v`.** The models live in
+the `models_cache` named volume (wiped by `down -v`) and are mirrored in MinIO. For
+an extra host-filesystem backup, export the volume to a folder you control:
+
+```bash
+# back up the model volume to ./models_backup on the host
+docker run --rm -v asr_diarization_project_models_cache:/models \
+  -v "$(pwd)/models_backup:/backup" alpine \
+  tar czf /backup/models.tgz -C /models .
+
+# restore later (e.g. after down -v, with no internet)
+docker run --rm -v asr_diarization_project_models_cache:/models \
+  -v "$(pwd)/models_backup:/backup" alpine \
+  tar xzf /backup/models.tgz -C /models
+```
+
 ---
 
 ## Optional profiles
