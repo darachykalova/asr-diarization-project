@@ -10,7 +10,7 @@ hybrid). Runs fully containerized with Docker Compose, behind nginx with TLS.
 
 | Area | What it does |
 |------|--------------|
-| **ASR** | faster-whisper transcription with word-level timestamps, automatic language detection (multilingual) |
+| **ASR** | faster-whisper transcription with word-level timestamps, automatic language detection (multilingual); model auto-selected by audio SNR (tiny / base / large-v2), user override via `?whisper_model=` |
 | **Diarization** | pyannote.audio 3.1 — detects who spoke when, assigns `SPEAKER_00`, `SPEAKER_01`, ... |
 | **Speaker identification** | SpeechBrain ECAPA-TDNN voice embeddings (192-dim) match the same person across different recordings |
 | **Overlap detection** | flags segments where speakers talk over each other |
@@ -328,7 +328,9 @@ The five required models (single source of truth: `services/model_registry.py`):
 
 | Model | Used for | Local path (under `/app/models`) |
 |-------|----------|----------------------------------|
-| faster-whisper base | ASR | `whisper/models--Systran--faster-whisper-base` |
+| faster-whisper tiny | ASR (clean audio, auto-selected) | `whisper/models--Systran--faster-whisper-tiny` |
+| faster-whisper base | ASR (average quality, auto-selected) | `whisper/models--Systran--faster-whisper-base` |
+| faster-whisper large-v2 | ASR (noisy audio, auto-selected) | `whisper/models--Systran--faster-whisper-large-v2` |
 | pyannote/speaker-diarization-3.1 | diarization | `hf/hub/models--pyannote--speaker-diarization-3.1` |
 | pyannote/segmentation-3.0 | diarization (dep) | `hf/hub/models--pyannote--segmentation-3.0` |
 | speechbrain/spkrec-ecapa-voxceleb | voice embeddings | `spkrec-ecapa-voxceleb/embedding_model.ckpt` |
@@ -441,9 +443,8 @@ Jobs that were processing are requeued automatically (`task_reject_on_worker_los
 **nginx 502 after restarting `api`**
 nginx caches the old container IP. `docker compose restart nginx`.
 
-**Swagger page is blank without internet**
-`/docs` loads UI assets from a CDN. The API itself works offline; this only affects
-the docs page rendering.
+**nginx 502 after container recreation**
+nginx caches the container IP. Run `docker compose restart nginx` after recreating the api container.
 
 **Redis / Qdrant connection errors**
 Ensure the full stack is up: `docker compose up -d` and check `docker compose ps`.
@@ -459,5 +460,4 @@ webhooks, keyword/semantic/hybrid search, SRT/VTT/TXT export, API-key auth with 
 and rate limiting, health/readiness probes, Prometheus metrics, structured JSON logs,
 scheduled backups, and monitoring.
 
-**Not yet implemented:** stereo-telephony "channel = speaker" mode (FR-8); offline
-Swagger asset bundling; GPU worker image.
+**Not yet implemented:** stereo-telephony "channel = speaker" mode (FR-8); GPU worker image; chunking of long audio (>60 min) into segments.
