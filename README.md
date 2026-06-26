@@ -440,11 +440,8 @@ Rebuild with the token so gated models are baked in:
 Raise Docker memory to 6 GB (`.wslconfig` on Windows) and restart Docker Desktop.
 Jobs that were processing are requeued automatically (`task_reject_on_worker_lost`).
 
-**nginx 502 after restarting `api`**
-nginx caches the old container IP. `docker compose restart nginx`.
-
-**nginx 502 after container recreation**
-nginx caches the container IP. Run `docker compose restart nginx` after recreating the api container.
+**nginx 502 after restarting or recreating `api`**
+nginx caches the old container IP. Run `docker compose restart nginx` to fix.
 
 **Redis / Qdrant connection errors**
 Ensure the full stack is up: `docker compose up -d` and check `docker compose ps`.
