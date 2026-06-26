@@ -2,8 +2,10 @@ import logging
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBearer
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -35,8 +37,31 @@ app = FastAPI(
         "API for asynchronous audio transcription, "
         "speaker diarization and transcript search."
     ),
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None,   # served locally below — no CDN required
+    redoc_url=None,
 )
+
+app.mount("/static", StaticFiles(directory="api/static"), name="static")
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui_html() -> HTMLResponse:
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=app.title + " — Swagger UI",
+        swagger_js_url="/static/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger-ui.css",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html() -> HTMLResponse:
+    return get_redoc_html(
+        openapi_url=app.openapi_url,
+        title=app.title + " — ReDoc",
+        redoc_js_url="/static/redoc.standalone.js",
+    )
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
