@@ -395,3 +395,12 @@ def get_occurrences_by_speaker(db: Session, speaker_id: int) -> list[Occurrence]
         .order_by(Occurrence.transcript_id.desc())
         .all()
     )
+
+
+def set_job_model(db: Session, job_id: str, model_used: str) -> None:
+    """Record which Whisper model was used for a job (auto-selected or chosen)."""
+    job = get_job_by_id(db=db, job_id=job_id)
+    if job is None:
+        return
+    job.model_used = model_used
+    db.commit()

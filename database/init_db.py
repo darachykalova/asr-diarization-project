@@ -25,6 +25,11 @@ def _run_migrations() -> None:
             "ALTER TABLE jobs ADD COLUMN progress INTEGER NOT NULL DEFAULT 0",
         ),
         (
+            "jobs",
+            "model_used",
+            "ALTER TABLE jobs ADD COLUMN model_used VARCHAR(20)",
+        ),
+        (
             "transcripts",
             "full_text_vector",
             "ALTER TABLE transcripts ADD COLUMN full_text_vector tsvector",

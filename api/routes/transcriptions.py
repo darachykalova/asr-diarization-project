@@ -13,6 +13,7 @@ from clients.minio_client import MinioStorageClient
 from database import crud
 from database.session import SessionLocal
 from schemas.api.transcription_schema import TranscriptionTaskResponse
+from services.audio_quality_service import resolve_user_model
 from services.audio_service import check_audio_file, SUPPORTED_EXTENSIONS
 from tasks.audio_tasks import process_audio_task, build_pipeline_chain, PIPELINE_MODE
 
@@ -176,8 +177,15 @@ async def upload_transcription(
     max_speakers: Optional[int] = None,
     initial_prompt: Optional[str] = None,
     webhook_url: Optional[str] = None,
+    whisper_model: Optional[str] = None,
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
+    # Validate model override (if any). None => system auto-selects by quality.
+    try:
+        resolved_model = resolve_user_model(whisper_model)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     # Idempotency: return existing job if key already seen
     if idempotency_key:
         db = SessionLocal()
@@ -233,6 +241,7 @@ async def upload_transcription(
         "max_speakers": max_speakers,
         "initial_prompt": initial_prompt,
         "webhook_url": webhook_url,
+        "whisper_model": resolved_model,
     }
 
     try:
@@ -268,6 +277,7 @@ async def upload_transcription(
             language=task_language,
             min_speakers=min_speakers,
             max_speakers=max_speakers,
+            whisper_model=resolved_model,
             initial_prompt=initial_prompt,
             webhook_url=webhook_url,
         ).apply_async(task_id=job_id)
@@ -280,6 +290,7 @@ async def upload_transcription(
                 "input_storage": "minio",
                 "min_speakers": min_speakers,
                 "max_speakers": max_speakers,
+                "model_size": resolved_model or "base",
                 "initial_prompt": initial_prompt,
                 "webhook_url": webhook_url,
             },
@@ -301,6 +312,7 @@ class UrlTranscriptionRequest(BaseModel):
     max_speakers: Optional[int] = None
     initial_prompt: Optional[str] = None
     webhook_url: Optional[str] = None
+    whisper_model: Optional[str] = None
 
 
 def _download_url_to_temp(url: str) -> tuple[str, str]:
@@ -326,6 +338,11 @@ async def transcribe_from_url(
     body: UrlTranscriptionRequest,
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
+    try:
+        resolved_model = resolve_user_model(body.whisper_model)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     if idempotency_key:
         db = SessionLocal()
         try:
@@ -369,6 +386,7 @@ async def transcribe_from_url(
         "max_speakers": body.max_speakers,
         "initial_prompt": body.initial_prompt,
         "webhook_url": body.webhook_url,
+        "whisper_model": resolved_model,
     }
 
     try:
@@ -398,6 +416,7 @@ async def transcribe_from_url(
             language=task_language,
             min_speakers=body.min_speakers,
             max_speakers=body.max_speakers,
+            whisper_model=resolved_model,
             initial_prompt=body.initial_prompt,
             webhook_url=body.webhook_url,
         ).apply_async(task_id=job_id)
@@ -410,6 +429,7 @@ async def transcribe_from_url(
                 "input_storage": "minio",
                 "min_speakers": body.min_speakers,
                 "max_speakers": body.max_speakers,
+                "model_size": resolved_model or "base",
                 "initial_prompt": body.initial_prompt,
                 "webhook_url": body.webhook_url,
             },

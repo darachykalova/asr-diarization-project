@@ -95,6 +95,8 @@ services:
       # at runtime (faster, robust, satisfies ТЗ offline requirement).
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
+      # Must match the worker: the upload route picks chain vs monolith from this.
+      PIPELINE_MODE: "chain"
     volumes:
       - ./data:/app/data
       - models_cache:/app/models
