@@ -18,6 +18,10 @@ class Job(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     progress: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Whisper model actually used for this job (auto-selected from audio
+    # quality, or the user's explicit choice). Populated by the ASR step.
+    model_used: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     idempotency_key: Mapped[str | None] = mapped_column(
         String(200),
         unique=True,

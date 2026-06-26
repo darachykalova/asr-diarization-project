@@ -24,7 +24,7 @@ def build_pipeline_chain(
     language: str | None = None,
     min_speakers: int | None = None,
     max_speakers: int | None = None,
-    model_size: str = "base",
+    whisper_model: str | None = None,
     initial_prompt: str | None = None,
     webhook_url: str | None = None,
 ):
@@ -42,7 +42,9 @@ def build_pipeline_chain(
             "language": language,
             "min_speakers": min_speakers,
             "max_speakers": max_speakers,
-            "model_size": model_size,
+            # None -> auto-select model from audio quality in asr_task;
+            # a value -> explicit user override (skips quality check).
+            "whisper_model": whisper_model,
             "initial_prompt": initial_prompt,
             "webhook_url": webhook_url,
         },

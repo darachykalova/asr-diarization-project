@@ -112,9 +112,37 @@ def asr_task(self, ctx: dict) -> dict:
     _set_progress(job_id, 20)
 
     from services.asr_service import ASRService
+    from services.audio_quality_service import compute_snr_db, select_model_by_snr
+    from services.model_cache import is_whisper_available
+
+    # Model choice: explicit user override wins (no quality check then);
+    # otherwise auto-select from the audio's estimated SNR.
+    override = params.get("whisper_model")
+    if override:
+        model_size = override
+        logger.info("Job %s: using user-selected model '%s'", job_id, model_size)
+    else:
+        snr_db = compute_snr_db(ctx["normalized_path"])
+        model_size = select_model_by_snr(snr_db)
+        logger.info("Job %s: SNR=%.1f dB -> auto model '%s'", job_id, snr_db, model_size)
+
+    # Safety net: if the chosen model isn't present locally (offline), fall
+    # back to base so the job still completes.
+    if not is_whisper_available(model_size):
+        logger.warning("Job %s: model '%s' unavailable, falling back to 'base'", job_id, model_size)
+        model_size = "base"
+
+    # Record the model actually used so it shows up in GET /v1/jobs/{id}.
+    db = SessionLocal()
+    try:
+        crud.set_job_model(db=db, job_id=job_id, model_used=model_size)
+    except Exception:
+        pass
+    finally:
+        db.close()
 
     segments, language, duration = ASRService(
-        model_size=params.get("model_size", "base")
+        model_size=model_size
     ).transcribe(
         audio_path=ctx["normalized_path"],
         language=params.get("language"),
@@ -122,6 +150,7 @@ def asr_task(self, ctx: dict) -> dict:
     )
 
     _set_progress(job_id, 45)
+    ctx["model_used"] = model_size
     ctx["asr_segments"] = segments
     ctx["detected_language"] = language
     ctx["duration_sec"] = duration
