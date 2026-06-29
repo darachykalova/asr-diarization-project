@@ -113,44 +113,82 @@ def asr_task(self, ctx: dict) -> dict:
 
     from services.asr_service import ASRService
     from services.audio_quality_service import compute_snr_db, select_model_by_snr
+    from services.chunking_service import delete_chunk_files, split_audio
     from services.model_cache import is_whisper_available
 
-    # Model choice: explicit user override wins (no quality check then);
-    # otherwise auto-select from the audio's estimated SNR.
+    normalized_path = ctx["normalized_path"]
     override = params.get("whisper_model")
-    if override:
-        model_size = override
-        logger.info("Job %s: using user-selected model '%s'", job_id, model_size)
-    else:
-        snr_db = compute_snr_db(ctx["normalized_path"])
-        model_size = select_model_by_snr(snr_db)
-        logger.info("Job %s: SNR=%.1f dB -> auto model '%s'", job_id, snr_db, model_size)
 
-    # Safety net: if the chosen model isn't present locally (offline), fall
-    # back to base so the job still completes.
-    if not is_whisper_available(model_size):
-        logger.warning("Job %s: model '%s' unavailable, falling back to 'base'", job_id, model_size)
-        model_size = "base"
+    def _resolve_model(path: str) -> str:
+        if override:
+            m = override
+            logger.info("Job %s: user-selected model '%s'", job_id, m)
+        else:
+            snr_db = compute_snr_db(path)
+            m = select_model_by_snr(snr_db)
+            logger.info("Job %s: SNR=%.1f dB -> auto model '%s'", job_id, snr_db, m)
+        if not is_whisper_available(m):
+            logger.warning("Job %s: model '%s' unavailable, falling back to 'base'", job_id, m)
+            m = "base"
+        return m
 
-    # Record the model actually used so it shows up in GET /v1/jobs/{id}.
+    _MODEL_TIER = {"tiny": 0, "base": 1, "large-v2": 2}
+
+    chunks = split_audio(normalized_path)
+    try:
+        if len(chunks) == 1:
+            model_size = _resolve_model(normalized_path)
+            segments, language, duration = ASRService(model_size).transcribe(
+                audio_path=normalized_path,
+                language=params.get("language"),
+                initial_prompt=params.get("initial_prompt"),
+            )
+            models_used = [model_size]
+        else:
+            all_segments: list[dict] = []
+            languages: list[str] = []
+            total_duration = 0.0
+            models_used = []
+
+            for idx, (chunk_path, offset_sec) in enumerate(chunks):
+                model_size = _resolve_model(chunk_path)
+                chunk_segs, chunk_lang, chunk_dur = ASRService(model_size).transcribe(
+                    audio_path=chunk_path,
+                    language=params.get("language"),
+                    initial_prompt=params.get("initial_prompt"),
+                )
+                for seg in chunk_segs:
+                    seg["start"] = round(seg["start"] + offset_sec, 2)
+                    seg["end"] = round(seg["end"] + offset_sec, 2)
+                    for w in seg.get("words", []):
+                        w["start"] = round(w["start"] + offset_sec, 2)
+                        w["end"] = round(w["end"] + offset_sec, 2)
+                all_segments.extend(chunk_segs)
+                if chunk_lang:
+                    languages.append(chunk_lang)
+                if chunk_dur:
+                    total_duration += chunk_dur
+                models_used.append(model_size)
+                logger.info("Job %s: chunk %d/%d done (model=%s)", job_id, idx + 1, len(chunks), model_size)
+
+            segments = all_segments
+            language = max(set(languages), key=languages.count) if languages else None
+            duration = total_duration
+    finally:
+        delete_chunk_files(chunks, normalized_path)
+
+    model_used = max(models_used, key=lambda m: _MODEL_TIER.get(m, 0))
+
     db = SessionLocal()
     try:
-        crud.set_job_model(db=db, job_id=job_id, model_used=model_size)
+        crud.set_job_model(db=db, job_id=job_id, model_used=model_used)
     except Exception:
         pass
     finally:
         db.close()
 
-    segments, language, duration = ASRService(
-        model_size=model_size
-    ).transcribe(
-        audio_path=ctx["normalized_path"],
-        language=params.get("language"),
-        initial_prompt=params.get("initial_prompt"),
-    )
-
     _set_progress(job_id, 45)
-    ctx["model_used"] = model_size
+    ctx["model_used"] = model_used
     ctx["asr_segments"] = segments
     ctx["detected_language"] = language
     ctx["duration_sec"] = duration
