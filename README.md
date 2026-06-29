@@ -10,7 +10,7 @@ hybrid). Runs fully containerized with Docker Compose, behind nginx with TLS.
 
 | Area | What it does |
 |------|--------------|
-| **ASR** | faster-whisper transcription with word-level timestamps, automatic language detection (multilingual); long audio split into 5-min chunks at silence boundaries — each chunk gets its own SNR analysis and model (tiny / base / large-v2); user override via `?whisper_model=` dropdown |
+| **ASR** | faster-whisper transcription with word-level timestamps, automatic language detection (multilingual); long audio (>6 min) split into 5-min chunks at pyannote VAD silence boundaries — each chunk gets its own SNR analysis and Whisper model (tiny / base / large-v2); user override via `?whisper_model=` dropdown |
 | **Diarization** | pyannote.audio 3.1 — detects who spoke when, assigns `SPEAKER_00`, `SPEAKER_01`, ... |
 | **Speaker identification** | SpeechBrain ECAPA-TDNN voice embeddings (192-dim) match the same person across different recordings |
 | **Overlap detection** | flags segments where speakers talk over each other |
@@ -227,8 +227,10 @@ Full interactive docs: `https://localhost/docs`.
 1. Client uploads audio → stored in MinIO, job record created (`202 Accepted`).
 2. Celery pipeline chain picked up by a prefork worker.
 3. Audio normalized to 16 kHz mono WAV.
-4. If audio > 6 min: split into ≤5-min chunks at silence boundaries (VAD). Each chunk
+4. If audio > 6 min: split into ≤5-min chunks at silence boundaries detected by
+   pyannote VAD (reuses the cached segmentation model — no extra load). Each chunk
    gets its own SNR analysis → Whisper model selection (tiny / base / large-v2).
+   If no VAD silence is found near a boundary, falls back to energy-based detection.
    If audio ≤ 6 min: processed as a single file.
 5. faster-whisper transcribes each chunk with word-level timestamps; results merged
    with adjusted timestamps; heaviest model used is recorded in `model_used`.
@@ -400,7 +402,7 @@ api/
 services/
 ├── asr_service.py               # faster-whisper wrapper (cached model)
 ├── audio_quality_service.py     # SNR estimation, auto model selection
-├── chunking_service.py          # split long audio at silence boundaries
+├── chunking_service.py          # split long audio at VAD silence boundaries (pyannote + energy fallback)
 ├── diarization_service.py       # pyannote wrapper (cached pipeline)
 ├── voice_embedding_service.py   # SpeechBrain ECAPA-TDNN (192-dim)
 ├── text_embedding_service.py    # sentence-transformers
