@@ -10,7 +10,7 @@ hybrid). Runs fully containerized with Docker Compose, behind nginx with TLS.
 
 | Area | What it does |
 |------|--------------|
-| **ASR** | faster-whisper transcription with word-level timestamps, automatic language detection (multilingual); model auto-selected by audio SNR (tiny / base / large-v2), user override via `?whisper_model=` |
+| **ASR** | faster-whisper transcription with word-level timestamps, automatic language detection (multilingual); long audio split into 5-min chunks at silence boundaries — each chunk gets its own SNR analysis and model (tiny / base / large-v2); user override via `?whisper_model=` dropdown |
 | **Diarization** | pyannote.audio 3.1 — detects who spoke when, assigns `SPEAKER_00`, `SPEAKER_01`, ... |
 | **Speaker identification** | SpeechBrain ECAPA-TDNN voice embeddings (192-dim) match the same person across different recordings |
 | **Overlap detection** | flags segments where speakers talk over each other |
@@ -181,7 +181,7 @@ GET /metrics
 ### Transcriptions
 ```http
 POST /v1/transcriptions/upload      # multipart file upload  -> 202
-POST /v1/transcriptions             # by URL / options        -> 202
+POST /v1/transcriptions/url         # download from URL, then process -> 202
 ```
 
 ### Jobs
@@ -225,24 +225,27 @@ Full interactive docs: `https://localhost/docs`.
 ## Processing workflow
 
 1. Client uploads audio → stored in MinIO, job record created (`202 Accepted`).
-2. Celery task picked up by a prefork worker.
+2. Celery pipeline chain picked up by a prefork worker.
 3. Audio normalized to 16 kHz mono WAV.
-4. faster-whisper transcribes with word-level timestamps.
-5. pyannote diarizes → local speaker labels + overlap flags.
-6. Speakers aligned to transcript segments.
-7. SpeechBrain extracts a voice embedding per local speaker; Qdrant `speaker_voices`
+4. If audio > 6 min: split into ≤5-min chunks at silence boundaries (VAD). Each chunk
+   gets its own SNR analysis → Whisper model selection (tiny / base / large-v2).
+   If audio ≤ 6 min: processed as a single file.
+5. faster-whisper transcribes each chunk with word-level timestamps; results merged
+   with adjusted timestamps; heaviest model used is recorded in `model_used`.
+6. pyannote diarizes the **full** audio → local speaker labels + overlap flags.
+7. Speakers aligned to transcript segments.
+8. SpeechBrain extracts a voice embedding per local speaker; Qdrant `speaker_voices`
    is searched to resolve a global `speaker_id` (or a new anonymous speaker is created).
-8. Text embeddings stored in Qdrant `transcript_segments`.
-9. Transcript + segments persisted to PostgreSQL.
-10. Optional webhook fired (HMAC-SHA256 signed) on completion.
+9. Text embeddings stored in Qdrant `transcript_segments`.
+10. Transcript + segments persisted to PostgreSQL.
+11. Optional webhook fired on completion.
 
 ---
 
 ## Reliability
 
-- **Retry policy** — `process_audio_task` auto-retries transient failures
-  (`autoretry_for`, `max_retries=2`, exponential `retry_backoff` + jitter).
-- **Dead-letter queue** — after retries are exhausted, the job is routed to the
+- **Retry policy** — pipeline tasks auto-retry transient failures (exponential backoff + jitter).
+- **Dead-letter queue** — after retries are exhausted the job is routed to the
   `dead_letter` queue, logged, and marked `failed` with `error_code=MAX_RETRIES_EXCEEDED`.
 - **Crash safety** — `task_acks_late=True` and `task_reject_on_worker_lost=True`
   so a job killed mid-flight (e.g. OOM) is requeued, not lost.
@@ -279,8 +282,8 @@ so **throughput doubles** with 2 workers even though individual job time is unch
 
 ### Why `max_speakers=1` is 3× faster
 
-When the caller signals a single speaker, pyannote is skipped entirely
-(`pipeline_service.py`). This removes the heaviest step and cuts processing time
+When the caller signals a single speaker, pyannote is skipped entirely.
+This removes the heaviest step and cuts processing time
 from ~370 s to ~107 s for a 15-second clip.
 
 ### Hardware limits and concurrency
@@ -395,23 +398,28 @@ api/
                             # speakers, search, api_keys, health
 
 services/
-├── asr_service.py          # faster-whisper wrapper (cached model)
-├── diarization_service.py  # pyannote wrapper (cached pipeline)
+├── asr_service.py               # faster-whisper wrapper (cached model)
+├── audio_quality_service.py     # SNR estimation, auto model selection
+├── chunking_service.py          # split long audio at silence boundaries
+├── diarization_service.py       # pyannote wrapper (cached pipeline)
 ├── voice_embedding_service.py   # SpeechBrain ECAPA-TDNN (192-dim)
 ├── text_embedding_service.py    # sentence-transformers
 ├── speaker_identification_service.py
-├── alignment_service.py    # map speakers onto transcript segments
-├── vad_service.py
-├── pipeline_service.py     # orchestrates the full job
-├── worker_job_service.py
+├── alignment_service.py         # map speakers onto transcript segments
 ├── qdrant_service.py / async_qdrant_service.py
-├── model_cache.py          # per-process model singletons
+├── model_cache.py               # per-process model singletons
 ├── webhook_service.py
 └── ...
 
-tasks/audio_tasks.py        # Celery tasks, retry policy, DLQ
+tasks/
+├── audio_tasks.py          # build_pipeline_chain, dead-letter task
+└── pipeline_tasks.py       # normalize → asr → diarize → merge → persist → identify → finalize
 clients/minio_client.py     # MinIO storage + lifecycle
-database/                   # SQLAlchemy models, repository, init
+database/
+├── models.py               # SQLAlchemy ORM models
+├── crud.py                 # all DB read/write functions
+├── session.py              # SessionLocal factory
+└── init_db.py
 schemas/                    # Pydantic request/response models
 scripts/
 ├── create_api_key.py
@@ -457,4 +465,4 @@ webhooks, keyword/semantic/hybrid search, SRT/VTT/TXT export, API-key auth with 
 and rate limiting, health/readiness probes, Prometheus metrics, structured JSON logs,
 scheduled backups, and monitoring.
 
-**Not yet implemented:** stereo-telephony "channel = speaker" mode (FR-8); GPU worker image; chunking of long audio (>60 min) into segments.
+**Not yet implemented:** stereo-telephony "channel = speaker" mode (FR-8); GPU worker image.
