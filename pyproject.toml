@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = ["venv", ".git", "__pycache__", "backup"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line too long — many existing long lines
+    "E402",  # module-level import not at top (lazy imports in tasks/conftest)
+    "F401",  # unused imports — some are intentional in __init__ files
+    "F811",  # redefinition — conftest patches
+]
