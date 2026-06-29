@@ -16,7 +16,7 @@ def _override_auth():
 
 
 def test_health_check():
-    response = client.get("/v1/")
+    response = client.get("/")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -71,7 +71,7 @@ def test_openapi_schema_is_available():
     schema = response.json()
 
     assert "paths" in schema
-    assert "/v1/" in schema["paths"]
+    assert "/" in schema["paths"]
     assert "/v1/transcriptions/upload" in schema["paths"]
     assert "/v1/jobs/{job_id}" in schema["paths"]
     assert "/v1/transcripts/{job_id}" in schema["paths"]
