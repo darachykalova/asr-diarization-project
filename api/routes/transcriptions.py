@@ -13,7 +13,7 @@ from clients.minio_client import MinioStorageClient
 from database import crud
 from database.session import SessionLocal
 from schemas.api.transcription_schema import TranscriptionTaskResponse
-from services.audio_quality_service import resolve_user_model
+from services.audio_quality_service import WhisperModelChoice, resolve_user_model
 from services.audio_service import check_audio_file, SUPPORTED_EXTENSIONS
 from tasks.audio_tasks import build_pipeline_chain
 
@@ -140,10 +140,9 @@ async def upload_transcription(
     max_speakers: Optional[int] = None,
     initial_prompt: Optional[str] = None,
     webhook_url: Optional[str] = None,
-    whisper_model: Optional[str] = None,
+    whisper_model: Optional[WhisperModelChoice] = None,
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
-    # Validate model override (if any). None => system auto-selects by quality.
     try:
         resolved_model = resolve_user_model(whisper_model)
     except ValueError as exc:
@@ -259,7 +258,7 @@ class UrlTranscriptionRequest(BaseModel):
     max_speakers: Optional[int] = None
     initial_prompt: Optional[str] = None
     webhook_url: Optional[str] = None
-    whisper_model: Optional[str] = None
+    whisper_model: Optional[WhisperModelChoice] = None
 
 
 def _download_url_to_temp(url: str) -> tuple[str, str]:

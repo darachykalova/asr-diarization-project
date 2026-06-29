@@ -17,6 +17,7 @@ it. The user can always override the choice with an explicit model.
 """
 
 import logging
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,13 @@ USER_MODEL_ALIASES = {
     "large": "large-v2",
     "large-v2": "large-v2",
 }
+
+
+class WhisperModelChoice(str, Enum):
+    tiny = "tiny"
+    base = "base"
+    large = "large"
+    large_v2 = "large-v2"
 
 
 def compute_snr_db(wav_path: str) -> float:
@@ -82,16 +90,17 @@ def select_model_by_snr(snr_db: float) -> str:
     return MODEL_POOR
 
 
-def resolve_user_model(value: str | None) -> str | None:
+def resolve_user_model(value: "WhisperModelChoice | str | None") -> str | None:
     """
     Validate and normalise a user-supplied model name.
 
+    Accepts WhisperModelChoice enum or raw string.
     Returns the internal faster-whisper id, or None if no override was given.
     Raises ValueError if the value is not a recognised model.
     """
     if value is None:
         return None
-    key = value.strip().lower()
+    key = (value.value if isinstance(value, WhisperModelChoice) else value).strip().lower()
     if key not in USER_MODEL_ALIASES:
         allowed = ", ".join(sorted(set(USER_MODEL_ALIASES.keys())))
         raise ValueError(f"Unknown whisper_model '{value}'. Allowed: {allowed}")
