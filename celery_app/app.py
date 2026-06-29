@@ -34,7 +34,6 @@ celery_app.conf.update(
     ),
     task_default_queue="default",
     task_routes={
-        "process_audio_task":              {"queue": "default"},
         "pipeline.normalize":              {"queue": "default"},
         "pipeline.asr":                    {"queue": "default"},
         "pipeline.diarize":                {"queue": "default"},

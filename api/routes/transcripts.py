@@ -6,7 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from api.auth import require_scope
 from clients.minio_client import MinioStorageClient
-from database.repository import TranscriptRepository
+from database import crud
 from services.qdrant_service import QdrantService
 
 
@@ -17,54 +17,26 @@ router = APIRouter(
 
 
 def _get_transcript_from_postgres(job_id: str) -> dict | None:
-    repository = TranscriptRepository()
-
-    return repository.get_transcript_by_job_id(
-        job_id=job_id
-    )
+    return crud.get_transcript_by_job_id(job_id=job_id)
 
 
-def _delete_transcript_everywhere(
-    job_id: str
-) -> dict:
-    repository = TranscriptRepository()
+def _delete_transcript_everywhere(job_id: str) -> dict:
     clean_job_id = job_id.strip()
 
-    transcript = repository.get_transcript_by_job_id(
-        job_id=clean_job_id
-    )
+    if crud.get_transcript_by_job_id(job_id=clean_job_id) is None:
+        return {"deleted": False, "reason": "not_found"}
 
-    if transcript is None:
-        return {
-            "deleted": False,
-            "reason": "not_found"
-        }
-
-    audio_key = repository.get_audio_key_by_job_id(
-        job_id=clean_job_id
-    )
+    audio_key = crud.get_audio_key_by_job_id(job_id=clean_job_id)
 
     minio_deleted = False
-
     if audio_key:
         try:
-            minio_client = MinioStorageClient()
-            minio_deleted = minio_client.delete_file(
-                audio_key
-            )
-
+            minio_deleted = MinioStorageClient().delete_file(audio_key)
         except Exception:
             minio_deleted = False
 
-    qdrant_service = QdrantService()
-
-    qdrant_deleted = qdrant_service.delete_job_segments(
-        job_id=clean_job_id
-    )
-
-    postgres_deleted = repository.delete_transcript_by_job_id(
-        job_id=clean_job_id
-    )
+    qdrant_deleted = QdrantService().delete_job_segments(job_id=clean_job_id)
+    postgres_deleted = crud.delete_transcript_by_job_id(job_id=clean_job_id)
 
     return {
         "deleted": postgres_deleted,
@@ -72,7 +44,7 @@ def _delete_transcript_everywhere(
         "audio_key": audio_key,
         "minio_deleted": minio_deleted,
         "qdrant_deleted": qdrant_deleted,
-        "postgres_deleted": postgres_deleted
+        "postgres_deleted": postgres_deleted,
     }
 
 
@@ -182,7 +154,7 @@ async def list_transcripts(
     status: Optional[str] = Query(None),
 ):
     return await run_in_threadpool(
-        TranscriptRepository().list_transcripts,
+        crud.list_transcripts,
         page=page,
         page_size=page_size,
         speaker_id=speaker_id,
@@ -255,7 +227,7 @@ async def get_segments(
     page_size: int = Query(50, ge=1, le=200),
 ):
     result = await run_in_threadpool(
-        TranscriptRepository().get_segments_by_job_id,
+        crud.get_segments_by_job_id,
         job_id=job_id,
         speaker_id=speaker_id,
         page=page,

@@ -1,6 +1,7 @@
 from datetime import datetime
 from math import ceil
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database.models import (
@@ -11,6 +12,7 @@ from database.models import (
     Transcript,
     TranscriptSegment,
 )
+from database.session import SessionLocal
 
 
 def create_speaker(
@@ -388,19 +390,183 @@ def update_job_status(
     return job
 
 
-def get_occurrences_by_speaker(db: Session, speaker_id: int) -> list[Occurrence]:
-    return (
-        db.query(Occurrence)
-        .filter(Occurrence.speaker_id == speaker_id)
-        .order_by(Occurrence.transcript_id.desc())
-        .all()
-    )
-
-
 def set_job_model(db: Session, job_id: str, model_used: str) -> None:
-    """Record which Whisper model was used for a job (auto-selected or chosen)."""
     job = get_job_by_id(db=db, job_id=job_id)
     if job is None:
         return
     job.model_used = model_used
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Transcript read/delete — session-managed (used by API routes)
+# ---------------------------------------------------------------------------
+
+def get_transcript_by_job_id(job_id: str) -> dict | None:
+    db = SessionLocal()
+    try:
+        transcript = db.query(Transcript).filter(Transcript.job_id == job_id.strip()).first()
+        if transcript is None:
+            return None
+        segments = (
+            db.query(TranscriptSegment)
+            .filter(TranscriptSegment.transcript_id == transcript.id)
+            .order_by(TranscriptSegment.segment_id)
+            .all()
+        )
+        occurrences = (
+            db.query(Occurrence, Speaker)
+            .join(Speaker, Occurrence.speaker_id == Speaker.id)
+            .filter(Occurrence.transcript_id == transcript.id)
+            .order_by(Occurrence.local_label)
+            .all()
+        )
+        speakers = [
+            {
+                "local_label": occ.local_label,
+                "speaker_id": spk.id,
+                "display_name": spk.name if spk.kind == "registered" else None,
+                "match_score": occ.match_score,
+            }
+            for occ, spk in occurrences
+        ]
+        return {
+            "job_id": transcript.job_id,
+            "status": transcript.status,
+            "success": transcript.success,
+            "language": transcript.language,
+            "audio": {"duration_sec": transcript.duration_sec, "sample_rate": 16000, "channels": 1},
+            "speakers": speakers,
+            "transcript": {
+                "full_text": transcript.full_text,
+                "segments": [
+                    {
+                        "id": s.segment_id, "start": s.start, "end": s.end,
+                        "speaker": s.speaker, "speaker_id": s.speaker_id,
+                        "text": s.text, "overlap": s.overlap, "words": s.words or [],
+                    }
+                    for s in segments
+                ],
+            },
+            "error": None,
+        }
+    finally:
+        db.close()
+
+
+def get_audio_key_by_job_id(job_id: str) -> str | None:
+    db = SessionLocal()
+    try:
+        job = db.query(Job).filter(Job.id == job_id.strip()).first()
+        return job.audio_key if job else None
+    finally:
+        db.close()
+
+
+def delete_transcript_by_job_id(job_id: str) -> bool:
+    db = SessionLocal()
+    try:
+        clean = job_id.strip()
+        transcript = db.query(Transcript).filter(Transcript.job_id == clean).first()
+        if transcript is None:
+            return False
+        recording = db.query(Recording).filter(Recording.job_id == clean).first()
+        if recording is not None:
+            db.delete(recording)
+        db.delete(transcript)
+        job = db.query(Job).filter(Job.id == clean).first()
+        if job is not None:
+            db.delete(job)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def list_transcripts(
+    page: int = 1,
+    page_size: int = 20,
+    speaker_id: int | None = None,
+    status: str | None = None,
+) -> dict:
+    db = SessionLocal()
+    try:
+        q = db.query(Transcript)
+        if status is not None:
+            q = q.filter(Transcript.status == status)
+        if speaker_id is not None:
+            sub = (
+                db.query(Occurrence.transcript_id)
+                .filter(Occurrence.speaker_id == speaker_id)
+                .subquery()
+            )
+            q = q.filter(Transcript.id.in_(sub))
+        total = q.count()
+        items = (
+            q.order_by(Transcript.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return {
+            "items": [
+                {
+                    "transcript_id": t.id,
+                    "job_id": t.job_id,
+                    "status": t.status,
+                    "language": t.language,
+                    "duration_sec": t.duration_sec,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                }
+                for t in items
+            ],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "pages": ceil(total / page_size) if total else 0,
+        }
+    finally:
+        db.close()
+
+
+def get_segments_by_job_id(
+    job_id: str,
+    speaker_id: int | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> dict | None:
+    db = SessionLocal()
+    try:
+        transcript = db.query(Transcript).filter(Transcript.job_id == job_id.strip()).first()
+        if transcript is None:
+            return None
+        q = db.query(TranscriptSegment).filter(TranscriptSegment.transcript_id == transcript.id)
+        if speaker_id is not None:
+            q = q.filter(TranscriptSegment.speaker_id == speaker_id)
+        total = q.count()
+        segments = (
+            q.order_by(TranscriptSegment.segment_id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return {
+            "job_id": transcript.job_id,
+            "items": [
+                {
+                    "id": s.segment_id, "start": s.start, "end": s.end,
+                    "speaker": s.speaker, "speaker_id": s.speaker_id,
+                    "text": s.text, "overlap": s.overlap, "words": s.words or [],
+                }
+                for s in segments
+            ],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "pages": ceil(total / page_size) if total else 0,
+        }
+    finally:
+        db.close()

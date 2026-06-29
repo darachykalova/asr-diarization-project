@@ -1,7 +1,6 @@
 ﻿from fastapi import APIRouter
 
 from api.routes.api_keys import router as api_keys_router
-from api.routes.health import router as health_router
 from api.routes.jobs import router as jobs_router
 from api.routes.search import router as search_router
 from api.routes.speakers import router as speakers_router

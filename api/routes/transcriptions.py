@@ -15,7 +15,7 @@ from database.session import SessionLocal
 from schemas.api.transcription_schema import TranscriptionTaskResponse
 from services.audio_quality_service import resolve_user_model
 from services.audio_service import check_audio_file, SUPPORTED_EXTENSIONS
-from tasks.audio_tasks import process_audio_task, build_pipeline_chain, PIPELINE_MODE
+from tasks.audio_tasks import build_pipeline_chain
 
 
 router = APIRouter(
@@ -26,27 +26,6 @@ router = APIRouter(
 
 MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024
 CHUNK_SIZE = 1024 * 1024
-
-
-def _create_task_response(
-    input_audio: str,
-    include_input_audio: bool
-) -> dict:
-    job_id = str(uuid4())
-
-    process_audio_task.apply_async(
-        kwargs={
-            "input_audio": input_audio,
-            "job_id": job_id
-        },
-        task_id=job_id
-    )
-
-    return {
-        "job_id": job_id,
-        "status": "queued",
-        "input_audio": input_audio if include_input_audio else None
-    }
 
 
 async def _save_upload_to_temp_file(
@@ -143,22 +122,6 @@ def _create_upload_database_records(
 
     finally:
         db.close()
-
-
-@router.post(
-    "",
-    response_model=TranscriptionTaskResponse,
-    status_code=202,
-    summary="Create transcription task from audio path",
-    description="Creates a background transcription task using an existing audio file path.",
-    dependencies=[Depends(require_scope("write"))]
-)
-async def create_transcription(audio_path: str):
-    return await run_in_threadpool(
-        _create_task_response,
-        audio_path,
-        False
-    )
 
 
 @router.post(
@@ -270,32 +233,16 @@ async def upload_transcription(
 
     task_language = None if language == "auto" else language
 
-    if PIPELINE_MODE == "chain":
-        build_pipeline_chain(
-            job_id=job_id,
-            input_key=object_key,
-            language=task_language,
-            min_speakers=min_speakers,
-            max_speakers=max_speakers,
-            whisper_model=resolved_model,
-            initial_prompt=initial_prompt,
-            webhook_url=webhook_url,
-        ).apply_async(task_id=job_id)
-    else:
-        process_audio_task.apply_async(
-            kwargs={
-                "input_audio": object_key,
-                "job_id": job_id,
-                "language": task_language,
-                "input_storage": "minio",
-                "min_speakers": min_speakers,
-                "max_speakers": max_speakers,
-                "model_size": resolved_model or "base",
-                "initial_prompt": initial_prompt,
-                "webhook_url": webhook_url,
-            },
-            task_id=job_id,
-        )
+    build_pipeline_chain(
+        job_id=job_id,
+        input_key=object_key,
+        language=task_language,
+        min_speakers=min_speakers,
+        max_speakers=max_speakers,
+        whisper_model=resolved_model,
+        initial_prompt=initial_prompt,
+        webhook_url=webhook_url,
+    ).apply_async(task_id=job_id)
 
     return {
         "job_id": job_id,
@@ -409,31 +356,15 @@ async def transcribe_from_url(
 
     task_language = None if body.language == "auto" else body.language
 
-    if PIPELINE_MODE == "chain":
-        build_pipeline_chain(
-            job_id=job_id,
-            input_key=object_key,
-            language=task_language,
-            min_speakers=body.min_speakers,
-            max_speakers=body.max_speakers,
-            whisper_model=resolved_model,
-            initial_prompt=body.initial_prompt,
-            webhook_url=body.webhook_url,
-        ).apply_async(task_id=job_id)
-    else:
-        process_audio_task.apply_async(
-            kwargs={
-                "input_audio": object_key,
-                "job_id": job_id,
-                "language": task_language,
-                "input_storage": "minio",
-                "min_speakers": body.min_speakers,
-                "max_speakers": body.max_speakers,
-                "model_size": resolved_model or "base",
-                "initial_prompt": body.initial_prompt,
-                "webhook_url": body.webhook_url,
-            },
-            task_id=job_id,
-        )
+    build_pipeline_chain(
+        job_id=job_id,
+        input_key=object_key,
+        language=task_language,
+        min_speakers=body.min_speakers,
+        max_speakers=body.max_speakers,
+        whisper_model=resolved_model,
+        initial_prompt=body.initial_prompt,
+        webhook_url=body.webhook_url,
+    ).apply_async(task_id=job_id)
 
     return {"job_id": job_id, "status": "queued", "input_audio": object_key}
