@@ -35,7 +35,6 @@ USER_MODEL_ALIASES = {
     "tiny": "tiny",
     "base": "base",
     "large": "large-v2",
-    "large-v2": "large-v2",
 }
 
 
@@ -43,7 +42,6 @@ class WhisperModelChoice(str, Enum):
     tiny = "tiny"
     base = "base"
     large = "large"
-    large_v2 = "large-v2"
 
 
 def compute_snr_db(wav_path: str) -> float:
