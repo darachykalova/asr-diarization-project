@@ -27,14 +27,16 @@ def test_vector_size_is_192():
 
 def test_match_threshold_default_is_0_80(monkeypatch):
     monkeypatch.delenv("SPEAKER_MATCH_THRESHOLD", raising=False)
-    import importlib, services.speaker_identification_service as mod
+    import importlib
+    import services.speaker_identification_service as mod
     importlib.reload(mod)
     assert mod.SpeakerIdentificationService.MATCH_THRESHOLD == 0.80
 
 
 def test_match_threshold_reads_from_env(monkeypatch):
     monkeypatch.setenv("SPEAKER_MATCH_THRESHOLD", "0.75")
-    import importlib, services.speaker_identification_service as mod
+    import importlib
+    import services.speaker_identification_service as mod
     importlib.reload(mod)
     assert mod.SpeakerIdentificationService.MATCH_THRESHOLD == 0.75
 
