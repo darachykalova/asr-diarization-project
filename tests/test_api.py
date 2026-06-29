@@ -28,8 +28,7 @@ def test_health_check():
 def test_get_missing_transcript_returns_404():
     app.dependency_overrides[verify_api_key] = _override_auth
 
-    with patch("api.routes.transcripts.TranscriptRepository") as mock_repo_cls:
-        mock_repo_cls.return_value.get_transcript_by_job_id.return_value = None
+    with patch("api.routes.transcripts.crud.get_transcript_by_job_id", return_value=None):
         response = client.get("/v1/transcripts/non-existing-job-id")
 
     app.dependency_overrides.clear()
@@ -40,23 +39,17 @@ def test_get_missing_transcript_returns_404():
     )
 
 
-def test_calls_search_requires_query():
+def test_search_requires_query():
     app.dependency_overrides[verify_api_key] = _override_auth
-    response = client.get("/v1/calls/search")
+    response = client.get("/v1/search")
     app.dependency_overrides.clear()
 
     assert response.status_code == 422
 
 
-def test_calls_search_rejects_invalid_limit():
+def test_search_rejects_invalid_limit():
     app.dependency_overrides[verify_api_key] = _override_auth
-    response = client.get(
-        "/v1/calls/search",
-        params={
-            "query": "test",
-            "limit": 0
-        }
-    )
+    response = client.get("/v1/search", params={"q": "test", "limit": 0})
     app.dependency_overrides.clear()
 
     assert response.status_code == 422
@@ -79,10 +72,10 @@ def test_openapi_schema_is_available():
 
     assert "paths" in schema
     assert "/v1/" in schema["paths"]
-    assert "/v1/calls/search" in schema["paths"]
     assert "/v1/transcriptions/upload" in schema["paths"]
     assert "/v1/jobs/{job_id}" in schema["paths"]
     assert "/v1/transcripts/{job_id}" in schema["paths"]
+    assert "/v1/search" in schema["paths"]
 
 
 def test_project_readme_exists():
