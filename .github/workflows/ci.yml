@@ -35,10 +35,11 @@ jobs:
 
     env:
       # Non-sensitive config — stored as GitHub Variables (Settings → Variables)
-      LOG_LEVEL: ${{ vars.LOG_LEVEL }}
-      SPEAKER_MATCH_THRESHOLD: ${{ vars.SPEAKER_MATCH_THRESHOLD }}
-      MINIO_BUCKET: ${{ vars.MINIO_BUCKET }}
-      MINIO_MODELS_BUCKET: ${{ vars.MINIO_MODELS_BUCKET }}
+      # Fallback defaults used when variables are not configured in repo settings
+      LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+      SPEAKER_MATCH_THRESHOLD: ${{ vars.SPEAKER_MATCH_THRESHOLD || '0.70' }}
+      MINIO_BUCKET: ${{ vars.MINIO_BUCKET || 'audio-files' }}
+      MINIO_MODELS_BUCKET: ${{ vars.MINIO_MODELS_BUCKET || 'ml-models' }}
 
       # Sensitive config — stored as GitHub Secrets (Settings → Secrets)
       MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
