@@ -88,8 +88,10 @@ def run_job(label, job_num, max_speakers, results):
 def run_batch(label, max_speakers, batch_size, results):
     threads = [threading.Thread(target=run_job, args=(label, i, max_speakers, results))
                for i in range(1, batch_size + 1)]
-    for t in threads: t.start()
-    for t in threads: t.join()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
 
 def print_stats(title, rows):
@@ -112,7 +114,7 @@ if __name__ == "__main__":
     print("\n" + "="*55)
     print("STRESS TEST: 3-minute audio (205.5s)")
     print(f"File: {os.path.basename(AUDIO)}")
-    print(f"Config: 6 CPUs, concurrency=2")
+    print("Config: 6 CPUs, concurrency=2")
     print("="*55)
 
     no_diar_results = []

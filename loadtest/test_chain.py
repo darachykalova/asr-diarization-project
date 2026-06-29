@@ -28,7 +28,7 @@ build_pipeline_chain(
     max_speakers=1,
 ).apply_async()
 
-print(f"Chain dispatched. Polling status...")
+print("Chain dispatched. Polling status...")
 t0 = time.time()
 for _ in range(120):
     time.sleep(10)

@@ -37,7 +37,8 @@ def load_transcriptions() -> dict[str, str]:
     try:
         from huggingface_hub import hf_hub_download
     except ImportError:
-        print("ERROR: pip install huggingface_hub"); sys.exit(1)
+        print("ERROR: pip install huggingface_hub")
+        sys.exit(1)
 
     print("Downloading test.tsv (0.7 MB)...")
     tsv_path = hf_hub_download(
@@ -65,11 +66,13 @@ def stream_and_extract(transcriptions: dict[str, str], n_samples: int) -> int:
     try:
         import requests
     except ImportError:
-        print("ERROR: pip install requests"); sys.exit(1)
+        print("ERROR: pip install requests")
+        sys.exit(1)
     try:
         import soundfile as sf
     except ImportError:
-        print("ERROR: pip install soundfile"); sys.exit(1)
+        print("ERROR: pip install soundfile")
+        sys.exit(1)
 
     url = f"{FLEURS_BASE}/audio/test.tar.gz"
     print(f"Streaming audio/test.tar.gz from HuggingFace (stop after {n_samples} files)...")

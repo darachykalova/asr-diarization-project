@@ -4,7 +4,11 @@ import wave
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 import torch
+
+
+pytestmark = pytest.mark.requires_torch
 
 
 def _make_mock_model(dim: int = 192):

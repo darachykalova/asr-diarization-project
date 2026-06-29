@@ -112,7 +112,7 @@ def main():
     print(f"File:      {os.path.basename(audio_path)}")
     print(f"Jobs:      {args.jobs} (parallel)")
     print(f"max_speakers: {args.speakers or 'auto'}")
-    print(f"Workers:   2 (concurrency=2)\n")
+    print("Workers:   2 (concurrency=2)\n")
 
     results = {}
     threads = []

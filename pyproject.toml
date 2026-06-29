@@ -1,3 +1,8 @@
+[tool.pytest.ini_options]
+markers = [
+    "requires_torch: tests that need real torch/numpy/speechbrain installed",
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"
