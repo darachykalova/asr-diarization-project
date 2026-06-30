@@ -189,7 +189,7 @@ services:
       - asr-net
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.4.0
     restart: unless-stopped
     profiles: ["monitoring"]
     environment:
@@ -197,6 +197,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000"
     depends_on:
