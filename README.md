@@ -406,6 +406,36 @@ re-reads dashboards every 30 s.
 
 ---
 
+## Testing & CI
+
+```bash
+# Run the unit tests (no containers required)
+python -m pytest tests/
+
+# A single test
+python -m pytest tests/test_api.py::test_health_check
+```
+
+Tests mock the heavy ML stack (torch, pyannote, speechbrain) via
+`tests/conftest.py`, so they run fast and without GPU. Tests that need the real
+ML libraries are marked `@pytest.mark.requires_torch` and skipped in CI:
+
+```bash
+pytest tests/ -m "not requires_torch"   # what CI runs
+```
+
+**GitHub Actions** (`.github/workflows/ci.yml`) runs on every push / PR to
+`main`, in two parallel jobs:
+
+- **Lint** — `ruff check .`
+- **Tests** — `pytest` against the lightweight `requirements-ci.txt`
+
+Secrets (`HF_TOKEN`, MinIO keys) live in GitHub Secrets; non-sensitive config
+(`LOG_LEVEL`, `SPEAKER_MATCH_THRESHOLD`, …) in GitHub Variables, with safe
+fallback defaults in the workflow.
+
+---
+
 ## Load testing
 
 A Postman collection lives in `loadtest/`. See `loadtest/README.md` for setup.
@@ -453,13 +483,19 @@ scripts/
 ├── upload_models_to_minio.py     # push models to MinIO
 └── sync_models_from_minio.py     # pull models on worker startup
 
+tests/                      # pytest unit tests (ML stack mocked in conftest.py)
+.github/workflows/ci.yml    # lint + tests on every push / PR
+
 nginx/                      # TLS reverse proxy config + certs (certs git-ignored)
-monitoring/                 # Prometheus + Grafana config
+monitoring/
+├── prometheus.yml          # scrape config (api:8000/metrics)
+└── grafana/                # auto-provisioned datasource + dashboards
 backup/                     # backup container (pg_dump + mc mirror)
 loadtest/                   # Postman collection + environment
 docker-compose.yml
 Dockerfile
-requirements.txt
+requirements.txt            # full runtime deps
+requirements-ci.txt         # lightweight deps for CI (no ML libs)
 ```
 
 ---
