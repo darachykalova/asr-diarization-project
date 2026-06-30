@@ -380,6 +380,30 @@ docker compose --profile monitoring up -d
 docker compose --profile backup up -d
 ```
 
+### Monitoring (Prometheus + Grafana)
+
+The API exposes Prometheus metrics at `/metrics` (via
+`prometheus-fastapi-instrumentator`). The `monitoring` profile adds two services:
+
+| Service    | URL                     | Login         |
+|------------|-------------------------|---------------|
+| Prometheus | http://localhost:9090   | —             |
+| Grafana    | http://localhost:3000   | `admin` / `admin` |
+
+Grafana is **provisioned automatically** — no manual setup:
+
+- The Prometheus datasource is wired on first boot
+  (`monitoring/grafana/provisioning/datasources/`).
+- The **ASR API — Overview** dashboard loads on startup
+  (`monitoring/grafana/dashboards/api-overview.json`).
+
+The dashboard tracks request rate per endpoint, latency (p50 / p95 / p99),
+error rate (4xx / 5xx) and total request volume, all derived from
+`http_requests_total` and `http_request_duration_seconds`.
+
+To edit a panel, change the JSON and restart Grafana — the file provider
+re-reads dashboards every 30 s.
+
 ---
 
 ## Load testing
