@@ -339,7 +339,7 @@ The five required models (single source of truth: `services/model_registry.py`):
 | pyannote/speaker-diarization-3.1 | diarization | `hf/hub/models--pyannote--speaker-diarization-3.1` |
 | pyannote/segmentation-3.0 | diarization (dep) | `hf/hub/models--pyannote--segmentation-3.0` |
 | speechbrain/spkrec-ecapa-voxceleb | voice embeddings | `spkrec-ecapa-voxceleb/embedding_model.ckpt` |
-| sentence-transformers MiniLM-L12-v2 | semantic search | `hf/hub/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2` |
+| sentence-transformers mpnet-base-v2 | semantic search (multilingual, 768-dim) | `hf/hub/models--sentence-transformers--paraphrase-multilingual-mpnet-base-v2` |
 
 **Fail-fast verification.** On startup the worker runs `scripts/verify_models.py`
 (and the API calls `model_registry.ensure_available()`). If any model is missing
@@ -479,9 +479,10 @@ database/
 schemas/                    # Pydantic request/response models
 scripts/
 ├── create_api_key.py
-├── download_models.py            # build-time model download
+├── verify_models.py              # startup fail-fast model check
 ├── upload_models_to_minio.py     # push models to MinIO
-└── sync_models_from_minio.py     # pull models on worker startup
+├── sync_models_from_minio.py     # pull models on worker startup
+└── reindex_transcripts.py        # rebuild the Qdrant search index from Postgres
 
 tests/                      # pytest unit tests (ML stack mocked in conftest.py)
 .github/workflows/ci.yml    # lint + tests on every push / PR

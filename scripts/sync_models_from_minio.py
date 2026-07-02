@@ -40,7 +40,7 @@ _SENTINELS = [
     "spkrec-ecapa-voxceleb/embedding_model.ckpt",
     "hf/hub/models--pyannote--speaker-diarization-3.1",
     "hf/hub/models--pyannote--segmentation-3.0",
-    "hf/hub/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2",
+    "hf/hub/models--sentence-transformers--paraphrase-multilingual-mpnet-base-v2",
 ]
 
 
