@@ -16,7 +16,7 @@ class TextEmbeddingService:
 
     MODEL_NAME = (
         "sentence-transformers/"
-        "paraphrase-multilingual-MiniLM-L12-v2"
+        "paraphrase-multilingual-mpnet-base-v2"
     )
 
     _model = None

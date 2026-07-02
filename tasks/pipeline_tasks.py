@@ -477,6 +477,9 @@ def _save_text_vectors(job_id: str, aligned_segments: list[dict]) -> None:
             SimpleNamespace(
                 id=s["id"], text=s["text"], speaker=s["speaker"],
                 start=s["start"], end=s["end"],
+                overlap=s.get("overlap", False),
+                alignment_source=s.get("alignment_source", "placeholder"),
+                diarization_source=s.get("diarization_source", "pyannote"),
             )
             for s in aligned_segments
         ]
