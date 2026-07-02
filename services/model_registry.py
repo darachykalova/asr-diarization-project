@@ -68,8 +68,8 @@ REQUIRED_MODELS: list[ModelSpec] = [
     ),
     ModelSpec(
         key="sentence-transformers",
-        name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-        local_path=HF_HUB / "models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2",
+        name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
+        local_path=HF_HUB / "models--sentence-transformers--paraphrase-multilingual-mpnet-base-v2",
         used_for="semantic search (text embeddings)",
         how_to_get="docker build (HF online) or scripts/sync_models_from_minio.py",
     ),

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class QdrantService:
     COLLECTION_NAME = "transcript_segments"
-    VECTOR_SIZE = 384
+    VECTOR_SIZE = 768
 
     DEFAULT_LIMIT = 10
     MIN_SEMANTIC_SCORE = 0.35
@@ -51,6 +51,19 @@ class QdrantService:
                 collection.name
                 for collection in collections.collections
             }
+
+            if self.COLLECTION_NAME in existing:
+                # Recreate if the stored vector size no longer matches the model
+                # (e.g. after switching the embedding model to a larger one).
+                info = self.client.get_collection(self.COLLECTION_NAME)
+                current_size = info.config.params.vectors.size
+                if current_size != self.VECTOR_SIZE:
+                    logger.warning(
+                        "Qdrant collection '%s' vector size %d != expected %d — recreating",
+                        self.COLLECTION_NAME, current_size, self.VECTOR_SIZE,
+                    )
+                    self.client.delete_collection(self.COLLECTION_NAME)
+                    existing.discard(self.COLLECTION_NAME)
 
             if self.COLLECTION_NAME not in existing:
                 self.client.create_collection(
