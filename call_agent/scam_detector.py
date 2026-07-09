@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import glob
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import yaml
 
@@ -58,6 +58,9 @@ class ScamDetector:
                     self._scores[scenario.key] += trig.weight
                     hits.append(Hit(scenario.key, matched, trig.weight))
         return hits
+
+    def total_delta_for(self, text: str) -> int:
+        return sum(h.weight for h in self.feed(text))
 
     def verdict(self) -> tuple[str, str | None, int]:
         best_key, best_conf = None, 0
