@@ -8,6 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Rebuild after code changes (COPY bakes code into image — restart alone is not enough)
 docker compose build api worker && docker compose up -d api worker
 
+# call-agent builds FROM asr-app: rebuild api (asr-app) first, then call-agent
+docker compose build api && docker compose build call-agent && docker compose up -d call-agent
+
 # Tests (no containers required)
 python -m pytest tests/
 python -m pytest tests/test_api.py::test_health_check   # single test
@@ -16,6 +19,7 @@ python -m pytest tests/test_api.py::test_health_check   # single test
 docker compose build --build-arg HF_TOKEN=hf_xxx
 docker compose exec api python scripts/create_api_key.py
 docker compose exec worker python scripts/verify_models.py
+docker compose exec call-agent python scripts/verify_call_agent_models.py
 
 # Admin console — первый запуск
 docker compose exec api python scripts/bootstrap_admin.py --login admin --role super_admin
@@ -24,9 +28,8 @@ docker compose exec api python scripts/bootstrap_admin.py --login admin --role s
 # Frontend (dev)
 cd frontend && npm install && npm run dev   # http://localhost:5173
 
-# Frontend (prod build)
-cd frontend && npm run build               # dist/ → раздаётся nginx (docker compose up -d frontend)
-docker compose up -d frontend
+# Frontend (prod build) — раздаётся nginx-контейнером на порту ${FRONTEND_PORT:-5173}
+docker compose build frontend && docker compose up -d frontend
 ```
 
 ## Architecture
@@ -49,15 +52,22 @@ normalize → asr → diarize → merge_align → persist → identify_speakers 
 
 **Admin console** — веб-интерфейс в `frontend/` (React+Vite). Отдельный JWT-слой в `api/auth_users.py` (не пересекается с API-key auth). Маршруты под `/v1/admin/*` подключены через `api/routes/admin_router.py`. Роли: `moderator` (аудио+транскрипции), `super_admin` (+ пользователи, аудит, настройки). Тест-оверрайд: `app.dependency_overrides[get_current_user] = lambda: mock_admin`.
 
+**Call-agent (анти-скам голосовой агент)** — отдельный сервис `call_agent/` на своём образе `asr-call-agent` (FROM asr-app), порт 8100. Один WebSocket endpoint `/ws/call` (`call_agent/main.py`) ведёт звонок: браузер шлёт PCM16@16kHz чанки, агент отвечает JSON (`agent_text`/`hangup`) + WAV-байтами. Внутри: `streaming_asr.py` (Vosk), `scam_detector.py` (YAML-сценарии в `call_agent/scenarios/`), `dialog_engine.py` (реплики из `persona/replies.yaml`), `tts_service.py` (Silero, WAV-кэш), `recorder.py` (запись → MinIO `calls/` → обычный pipeline chain). Всё блокирующее в endpoint'е обёрнуто `asyncio.to_thread()`. Модели живут в volume `models_cache`: `vosk/<model>/am/final.mdl` и `silero/v4_ru.pt` — образ их не содержит, проверка на старте роняет контейнер с инструкцией по скачиванию.
+
 **Admin env vars** (обязательны для запуска admin-функционала):
 - `ADMIN_JWT_SECRET` — секрет подписи JWT (обязателен, не должен быть пустым в prod)
 - `ADMIN_JWT_TTL_HOURS` — TTL токена (по умолчанию `8`)
 - `ADMIN_BOOTSTRAP_LOGIN` / `ADMIN_BOOTSTRAP_PASSWORD` — учётка первого супер-админа (создаётся на startup, если `admin_users` пуста; минимум 8 символов)
 - `CORS_ORIGINS` — разрешённые origin для CORS (по умолчанию `http://localhost:5173`)
 - `VITE_API_BASE_URL` — URL бэкенда для фронтенда (по умолчанию пусто = тот же хост)
+- `VITE_CALL_AGENT_WS` — WS-адрес call-agent для симулятора (build-arg фронтенда, по умолчанию `ws://localhost:8100/ws/call`)
 
 ## Pitfalls
 
 - `PIPELINE_MODE` env var is ignored — the monolith path was deleted. Only the chain exists.
 - `database/repository.py` does not exist. Use `database/crud.py`.
 - Runtime is fully offline (`HF_HUB_OFFLINE=1`). `HF_TOKEN` is build-time only.
+- `frontend/nginx.conf` ставит CSP: в `connect-src` обязательны `ws: wss:`, иначе браузер молча блокирует WebSocket симулятора («Ошибка подключения к агенту»).
+- Whisper не принимает `"auto"` как код языка — везде маппить в `None` (см. `_get_default_language` в `api/routes/transcriptions.py`).
+- Настройки платформы: пустая строка = «не задано» и валидна для любого `value_type` (`_validate_setting_value` в `database/crud.py`). SettingsPage шлёт все поля разом — не ужесточать валидацию пустых.
+- `docker compose exec -T postgres psql ...` из PowerShell глотает stdout — выполнять такие команды через Git Bash.

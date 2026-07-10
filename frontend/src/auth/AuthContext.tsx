@@ -22,8 +22,24 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const TOKEN_KEY = "admin_jwt";
 const USER_KEY  = "admin_user";
 
+function isTokenValid(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return typeof payload.exp === "number" && payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 function loadToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  const t = localStorage.getItem(TOKEN_KEY);
+  if (t && !isTokenValid(t)) {
+    // Истёкший токен: чистим сразу, иначе страницы молча получают 401
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    return null;
+  }
+  return t;
 }
 
 function loadUser(): AuthUser | null {

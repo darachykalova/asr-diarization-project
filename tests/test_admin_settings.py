@@ -111,6 +111,18 @@ def test_put_settings_preserves_other_settings_on_error():
     assert resp.status_code == 422
 
 
+def test_validate_setting_value_allows_empty_as_unset():
+    """Пустая строка = «не задано»: валидна для любого типа.
+
+    Дефолтные настройки сеются с пустыми значениями (напр. max_speakers),
+    а SettingsPage шлёт все поля разом — без этого сохранение всегда падало 422.
+    """
+    from database.crud import _validate_setting_value
+    for vtype in ("int", "float", "bool", "string"):
+        _validate_setting_value("", vtype)
+        _validate_setting_value("  ", vtype)
+
+
 def test_put_settings_forbids_moderator():
     app.dependency_overrides[get_current_user] = lambda: _user(role="moderator")
     resp = client.put("/v1/admin/settings", json=[{"key": "k", "value": "v"}])

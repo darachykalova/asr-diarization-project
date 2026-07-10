@@ -1050,7 +1050,13 @@ _OBSOLETE_KEYS: set[str] = {"chunk_threshold_sec", "default_rate_limit"}
 
 
 def _validate_setting_value(value: str, value_type: str) -> None:
-    """Raises ValueError if value doesn't match value_type."""
+    """Raises ValueError if value doesn't match value_type.
+
+    Пустая строка допустима для любого типа — означает «не задано»
+    (дефолтные настройки сеются с пустыми значениями).
+    """
+    if not value.strip():
+        return
     if value_type == "int":
         int(value)
     elif value_type == "float":
