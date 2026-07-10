@@ -14,6 +14,7 @@ import { UploadPage } from "./pages/UploadPage";
 import { UsersPage } from "./pages/UsersPage";
 import { CallsListPage } from "./pages/CallsListPage";
 import { CallDetailPage } from "./pages/CallDetailPage";
+import { CallSimulatorPage } from "./pages/CallSimulatorPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -44,6 +45,7 @@ export default function App() {
                         <Route path="/users" element={<UsersPage />} />
                         <Route path="/audit-log" element={<AuditLogPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/simulator" element={<CallSimulatorPage />} />
                         <Route path="*" element={<Navigate to="/audio" replace />} />
                       </Routes>
                     </main>

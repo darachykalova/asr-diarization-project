@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/users",     label: "Пользователи",   roles: ["super_admin"] },
   { path: "/audit-log", label: "Журнал аудита",  roles: ["super_admin"] },
   { path: "/settings",  label: "Настройки",      roles: ["super_admin"] },
+  { path: "/simulator", label: "Симулятор",      roles: ["super_admin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {

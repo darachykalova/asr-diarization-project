@@ -211,6 +211,7 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: ""   # пусто = тот же хост через nginx proxy
+        VITE_CALL_AGENT_WS: "ws://localhost:8100/ws/call"  # dev; prod: route via nginx wss
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-5173}:80"
