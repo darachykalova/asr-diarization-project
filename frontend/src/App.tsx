@@ -13,6 +13,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
 import { UsersPage } from "./pages/UsersPage";
 import { CallsListPage } from "./pages/CallsListPage";
+import { CallDetailPage } from "./pages/CallDetailPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -38,6 +39,7 @@ export default function App() {
                         <Route path="/audio" element={<AudioListPage />} />
                         <Route path="/audio/:jobId" element={<AudioDetailPage />} />
                         <Route path="/calls" element={<CallsListPage />} />
+                        <Route path="/calls/:callId" element={<CallDetailPage />} />
                         <Route path="/analytics" element={<AnalyticsPage />} />
                         <Route path="/users" element={<UsersPage />} />
                         <Route path="/audit-log" element={<AuditLogPage />} />
