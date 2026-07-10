@@ -228,6 +228,21 @@ services:
     networks:
       - asr-net
 
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      # Локальный инстанс без учётки: редактор на http://localhost:5678
+      N8N_SECURE_COOKIE: "false"
+      GENERIC_TIMEZONE: "Europe/Minsk"
+      TZ: "Europe/Minsk"
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - asr-net
+
   call-agent:
     # Models required: download vosk-model-small-ru into models_cache volume
     # and Silero v4_ru.pt. Run: docker compose exec call-agent python scripts/verify_call_agent_models.py
@@ -278,3 +293,4 @@ volumes:
   grafana_data:
   backup_data:
   ollama_data:
+  n8n_data:
