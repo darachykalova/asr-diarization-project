@@ -2,15 +2,17 @@ import logging
 import os
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBearer
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.concurrency import run_in_threadpool
 
+from api.limiter import limiter
 from api.routes import api_router
 from api.routes.health import router as health_router
 from database.init_db import init_db
@@ -18,18 +20,7 @@ from services.logging_json import setup_json_logging
 
 setup_json_logging()
 
-_DEFAULT_RATE = os.getenv("API_RATE_LIMIT", "60/minute")
 _bearer = HTTPBearer(auto_error=False)
-
-
-def _key_by_api_key(request: Request) -> str:
-    auth = request.headers.get("Authorization", "")
-    if auth.lower().startswith("bearer "):
-        return auth[7:].strip()[:64]  # use token as key, truncated for safety
-    return request.client.host if request.client else "anonymous"
-
-
-limiter = Limiter(key_func=_key_by_api_key, default_limits=[_DEFAULT_RATE])
 
 app = FastAPI(
     title="Audio Intelligence API",
@@ -67,6 +58,21 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+# CORS для фронтенда. В prod задайте CORS_ORIGINS через env (список через запятую).
+# В dev Vite-прокси обходит CORS, поэтому этот middleware нужен только для прод.
+_cors_origins = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
@@ -91,6 +97,24 @@ async def audit_log_middleware(request: Request, call_next):
     return response
 
 
+def _bootstrap_admin() -> None:
+    login = os.getenv("ADMIN_BOOTSTRAP_LOGIN")
+    password = os.getenv("ADMIN_BOOTSTRAP_PASSWORD")
+    if not login or not password:
+        return
+    from database.models import AdminUser
+    from database.session import SessionLocal
+    from database.crud import create_admin_user
+    from api.auth_users import hash_password
+    db = SessionLocal()
+    try:
+        if db.query(AdminUser).count() == 0:
+            create_admin_user(db, login, hash_password(password), role="super_admin")
+            logging.getLogger(__name__).info("Bootstrap super-admin created: %s", login)
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 async def startup():
     logger = logging.getLogger(__name__)
@@ -105,6 +129,23 @@ async def startup():
     logger.info("Initializing database tables...")
     await run_in_threadpool(init_db)
     logger.info("Database tables initialized.")
+
+    logger.info("Bootstrapping first admin user if needed...")
+    await run_in_threadpool(_bootstrap_admin)
+    logger.info("Admin bootstrap check done.")
+
+    logger.info("Seeding default platform settings...")
+    from database.session import SessionLocal as _SL
+    from database.crud import seed_default_settings as _seed, cleanup_old_audit_logs as _cleanup
+    _db = _SL()
+    try:
+        _seed(_db)
+        deleted = _cleanup(_db)
+        if deleted:
+            logger.info("Audit log cleanup: removed %d old entries.", deleted)
+    finally:
+        _db.close()
+    logger.info("Platform settings seeded.")
 
     from services.text_embedding_service import TextEmbeddingService
     from clients.minio_client import MinioStorageClient

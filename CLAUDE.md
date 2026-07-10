@@ -16,6 +16,17 @@ python -m pytest tests/test_api.py::test_health_check   # single test
 docker compose build --build-arg HF_TOKEN=hf_xxx
 docker compose exec api python scripts/create_api_key.py
 docker compose exec worker python scripts/verify_models.py
+
+# Admin console — первый запуск
+docker compose exec api python scripts/bootstrap_admin.py --login admin --role super_admin
+# (пароль берётся из --password или env ADMIN_BOOTSTRAP_PASSWORD или интерактивно)
+
+# Frontend (dev)
+cd frontend && npm install && npm run dev   # http://localhost:5173
+
+# Frontend (prod build)
+cd frontend && npm run build               # dist/ → раздаётся nginx (docker compose up -d frontend)
+docker compose up -d frontend
 ```
 
 ## Architecture
@@ -35,6 +46,15 @@ normalize → asr → diarize → merge_align → persist → identify_speakers 
 **DB layer** — all ops in `database/crud.py`. Celery task functions take `db: Session` (caller manages). Transcript query functions (used by API routes) manage `SessionLocal()` internally. `database/repository.py` was deleted.
 
 **Auth** — `api/auth.py`, Bearer token with scope `read`/`write`/`admin`. Test override: `app.dependency_overrides[verify_api_key] = lambda: mock_key`.
+
+**Admin console** — веб-интерфейс в `frontend/` (React+Vite). Отдельный JWT-слой в `api/auth_users.py` (не пересекается с API-key auth). Маршруты под `/v1/admin/*` подключены через `api/routes/admin_router.py`. Роли: `moderator` (аудио+транскрипции), `super_admin` (+ пользователи, аудит, настройки). Тест-оверрайд: `app.dependency_overrides[get_current_user] = lambda: mock_admin`.
+
+**Admin env vars** (обязательны для запуска admin-функционала):
+- `ADMIN_JWT_SECRET` — секрет подписи JWT (обязателен, не должен быть пустым в prod)
+- `ADMIN_JWT_TTL_HOURS` — TTL токена (по умолчанию `8`)
+- `ADMIN_BOOTSTRAP_LOGIN` / `ADMIN_BOOTSTRAP_PASSWORD` — учётка первого супер-админа (создаётся на startup, если `admin_users` пуста; минимум 8 символов)
+- `CORS_ORIGINS` — разрешённые origin для CORS (по умолчанию `http://localhost:5173`)
+- `VITE_API_BASE_URL` — URL бэкенда для фронтенда (по умолчанию пусто = тот же хост)
 
 ## Pitfalls
 

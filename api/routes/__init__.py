@@ -1,5 +1,6 @@
 ﻿from fastapi import APIRouter
 
+from api.routes.admin_router import admin_router
 from api.routes.api_keys import router as api_keys_router
 from api.routes.jobs import router as jobs_router
 from api.routes.search import router as search_router
@@ -16,3 +17,4 @@ api_router.include_router(transcripts_router)
 api_router.include_router(speakers_router)
 api_router.include_router(api_keys_router)
 api_router.include_router(search_router)
+api_router.include_router(admin_router)
