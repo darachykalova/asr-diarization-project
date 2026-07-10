@@ -41,3 +41,17 @@ def test_get_call_detail_404():
         r = client.get("/v1/admin/calls/nope")
     app.dependency_overrides.pop(get_current_user, None)
     assert r.status_code == 404
+
+
+def test_regenerate_summary_sets_and_returns():
+    app.dependency_overrides[get_current_user] = lambda: _user("super_admin")
+    detail = {"call": {"job_id": "job-1"}, "events": []}
+    with patch("api.routes.admin_calls.crud.get_call_detail", return_value=detail), \
+         patch("api.routes.admin_calls._transcript_text", return_value="расшифровка"), \
+         patch("api.routes.admin_calls.summarize_transcript", return_value="Кратко: банк."), \
+         patch("api.routes.admin_calls.crud.set_call_summary", return_value=None) as setter:
+        r = client.post("/v1/admin/calls/call-1/summary")
+    app.dependency_overrides.pop(get_current_user, None)
+    assert r.status_code == 200
+    assert r.json()["summary"] == "Кратко: банк."
+    setter.assert_called_once()
