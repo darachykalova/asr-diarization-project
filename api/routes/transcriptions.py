@@ -18,19 +18,65 @@ from services.audio_service import check_audio_file, SUPPORTED_EXTENSIONS
 from tasks.audio_tasks import build_pipeline_chain
 
 
+def _resolve_model(user_choice: Optional[WhisperModelChoice]) -> Optional[WhisperModelChoice]:
+    """Resolve whisper model: user choice > platform default > auto-select."""
+    if user_choice is not None:
+        return resolve_user_model(user_choice)
+    db = SessionLocal()
+    try:
+        platform_default = crud.get_setting_value(db, "default_asr_model")
+    finally:
+        db.close()
+    if platform_default:
+        try:
+            return resolve_user_model(platform_default)
+        except (ValueError, Exception):
+            pass
+    return resolve_user_model(None)
+
+
 router = APIRouter(
     prefix="/transcriptions",
     tags=["Transcriptions"]
 )
 
 
-MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024
+_DEFAULT_MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB fallback
 CHUNK_SIZE = 1024 * 1024
 
 
+def _get_max_file_size() -> int:
+    """Читает max_upload_size_mb из настроек платформы, возвращает байты."""
+    db = SessionLocal()
+    try:
+        val = crud.get_setting_value(db, "max_upload_size_mb")
+    finally:
+        db.close()
+    if val and val.strip().isdigit():
+        return int(val) * 1024 * 1024
+    return _DEFAULT_MAX_FILE_SIZE
+
+
+def _get_default_language() -> str | None:
+    """Читает default_language из настроек. Возвращает None если не задан (авто).
+
+    "auto" — не валидный код языка для Whisper, поэтому трактуем его как None.
+    """
+    db = SessionLocal()
+    try:
+        val = crud.get_setting_value(db, "default_language")
+    finally:
+        db.close()
+    val = val.strip() if val else ""
+    return None if not val or val.lower() == "auto" else val
+
+
 async def _save_upload_to_temp_file(
-    file: UploadFile
+    file: UploadFile,
+    max_size: int | None = None,
 ) -> tuple[str, int]:
+    if max_size is None:
+        max_size = _get_max_file_size()
     suffix = Path(file.filename or "audio").suffix
 
     with tempfile.NamedTemporaryFile(
@@ -48,10 +94,11 @@ async def _save_upload_to_temp_file(
 
             total_size += len(chunk)
 
-            if total_size > MAX_FILE_SIZE:
+            if total_size > max_size:
+                limit_mb = max_size // (1024 * 1024)
                 raise HTTPException(
                     status_code=413,
-                    detail="File too large. Maximum allowed size is 2 GB."
+                    detail=f"Файл слишком большой. Максимальный размер: {limit_mb} МБ."
                 )
 
             temp_file.write(chunk)
@@ -144,7 +191,7 @@ async def upload_transcription(
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     try:
-        resolved_model = resolve_user_model(whisper_model)
+        resolved_model = _resolve_model(whisper_model)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -230,14 +277,29 @@ async def upload_transcription(
         finally:
             db.close()
 
-    task_language = None if language == "auto" else language
+    # Если язык "auto" — берём из настроек платформы, иначе None (автоопределение)
+    if language == "auto":
+        task_language = _get_default_language()
+    else:
+        task_language = language
+
+    # max_speakers: берём из настроек если не передан явно
+    effective_max_speakers = max_speakers
+    if effective_max_speakers is None:
+        db = SessionLocal()
+        try:
+            val = crud.get_setting_value(db, "max_speakers")
+            if val and val.strip().isdigit():
+                effective_max_speakers = int(val)
+        finally:
+            db.close()
 
     build_pipeline_chain(
         job_id=job_id,
         input_key=object_key,
         language=task_language,
         min_speakers=min_speakers,
-        max_speakers=max_speakers,
+        max_speakers=effective_max_speakers,
         whisper_model=resolved_model,
         initial_prompt=initial_prompt,
         webhook_url=webhook_url,
@@ -285,7 +347,7 @@ async def transcribe_from_url(
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     try:
-        resolved_model = resolve_user_model(body.whisper_model)
+        resolved_model = _resolve_model(body.whisper_model)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
