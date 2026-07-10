@@ -204,7 +204,8 @@ async def _safe_finalize(session, db, recorder, call_id, events, ended_reason):
         # Best-effort: at least mark the call as ended in the DB
         try:
             result = session.result()
-            crud.finalize_call(
+            await asyncio.to_thread(
+                crud.finalize_call,
                 db,
                 call_id=call_id,
                 ended_at=datetime.utcnow(),
