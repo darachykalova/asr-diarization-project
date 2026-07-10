@@ -112,10 +112,9 @@ services:
         condition: service_healthy
     expose:
       - "8000"
-    entrypoint: /bin/sh
     command: >
-      -c "python scripts/sync_models_from_minio.py &&
-          uvicorn api.main:app --host 0.0.0.0 --port 8000"
+      sh -c "python scripts/sync_models_from_minio.py &&
+             uvicorn api.main:app --host 0.0.0.0 --port 8000"
     networks:
       - asr-net
 
@@ -147,11 +146,10 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-    entrypoint: /bin/sh
     command: >
-      -c "python scripts/sync_models_from_minio.py &&
-          python scripts/verify_models.py &&
-          python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=prefork --concurrency=2 --max-tasks-per-child=10"
+      sh -c "python scripts/sync_models_from_minio.py &&
+             python scripts/verify_models.py &&
+             python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=prefork --concurrency=2 --max-tasks-per-child=10"
     networks:
       - asr-net
 
@@ -215,7 +213,7 @@ services:
         VITE_API_BASE_URL: ""   # пусто = тот же хост через nginx proxy
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${FRONTEND_PORT:-5173}:80"
     depends_on:
       - api
     networks:
