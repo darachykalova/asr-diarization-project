@@ -112,9 +112,10 @@ services:
         condition: service_healthy
     expose:
       - "8000"
+    entrypoint: /bin/sh
     command: >
-      sh -c "python scripts/sync_models_from_minio.py &&
-             uvicorn api.main:app --host 0.0.0.0 --port 8000"
+      -c "python scripts/sync_models_from_minio.py &&
+          uvicorn api.main:app --host 0.0.0.0 --port 8000"
     networks:
       - asr-net
 
@@ -146,10 +147,11 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+    entrypoint: /bin/sh
     command: >
-      sh -c "python scripts/sync_models_from_minio.py &&
-             python scripts/verify_models.py &&
-             python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=prefork --concurrency=2 --max-tasks-per-child=10"
+      -c "python scripts/sync_models_from_minio.py &&
+          python scripts/verify_models.py &&
+          python -m celery -A tasks.audio_tasks worker --loglevel=info --pool=prefork --concurrency=2 --max-tasks-per-child=10"
     networks:
       - asr-net
 
@@ -206,6 +208,55 @@ services:
     networks:
       - asr-net
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ""   # пусто = тот же хост через nginx proxy
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - api
+    networks:
+      - asr-net
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - asr-net
+
+  call-agent:
+    build:
+      context: .
+      dockerfile: call_agent/Dockerfile
+    image: asr-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MODEL_CACHE_DIR: /app/models
+      HF_HUB_OFFLINE: "1"
+      OLLAMA_URL: "http://ollama:11434"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:4000"
+    volumes:
+      - ./data:/app/data
+      - models_cache:/app/models
+    ports:
+      - "${CALL_AGENT_PORT:-8100}:8100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - asr-net
+
 networks:
   asr-net:
     driver: bridge
@@ -218,3 +269,4 @@ volumes:
   prometheus_data:
   grafana_data:
   backup_data:
+  ollama_data:
