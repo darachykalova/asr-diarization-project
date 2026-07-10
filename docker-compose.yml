@@ -241,7 +241,7 @@ services:
     build:
       context: .
       dockerfile: call_agent/Dockerfile
-    image: asr-app
+    image: asr-call-agent
     restart: unless-stopped
     env_file:
       - .env

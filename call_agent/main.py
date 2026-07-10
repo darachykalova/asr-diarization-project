@@ -76,13 +76,13 @@ def _check_call_agent_models() -> None:
     errors: list[str] = []
 
     vosk_path = Path(settings.vosk_model_path)
-    if not vosk_path.is_dir() or not any(vosk_path.glob("final.mdl")):
+    if not vosk_path.is_dir() or not any(vosk_path.rglob("final.mdl")):
         errors.append(
             f"Vosk model not found or incomplete at: {vosk_path}\n"
             "  Download: https://alphacephei.com/vosk/models\n"
             "  Example:  wget https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip\n"
             "            unzip vosk-model-small-ru-0.22.zip -d <models_cache>/vosk/\n"
-            f"  Expected: {vosk_path}/final.mdl"
+            f"  Expected: {vosk_path}/am/final.mdl"
         )
 
     silero_path = Path(settings.silero_model_path)
@@ -134,12 +134,12 @@ async def ws_call(ws: WebSocket):
         elif action.type == "hangup":
             await ws.send_json({"type": "hangup"})
 
-    # Fix 1: session.start() calls TTS synthesis — run in thread pool
-    greeting = await asyncio.to_thread(session.start)
-    await send_action(greeting)
-
     ended_reason = "caller_hung_up"
     try:
+        # Fix 1: session.start() calls TTS synthesis — run in thread pool
+        greeting = await asyncio.to_thread(session.start)
+        await send_action(greeting)
+
         while True:
             chunk = await ws.receive_bytes()
             # Fix 1: on_pcm runs Vosk AcceptWaveform (CPU-bound) — run in thread pool
@@ -155,6 +155,10 @@ async def ws_call(ws: WebSocket):
                 await send_action(tick)
     except WebSocketDisconnect:
         pass
+    except Exception:
+        # Abrupt client disconnects surface as ConnectionClosedError/RuntimeError
+        # from send calls, not WebSocketDisconnect — log and finalize normally.
+        logger.exception("ws_call: connection error for call %s", call_id)
     finally:
         # Fix 3: exception isolation — best-effort finalize even if _finalize raises
         await _safe_finalize(session, db, recorder, call_id, events, ended_reason)
