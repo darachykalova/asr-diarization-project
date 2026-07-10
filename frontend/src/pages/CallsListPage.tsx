@@ -15,15 +15,17 @@ const VERDICT = { scam: "🔴 Мошенник", not_scam: "🟢 Чисто", un
 
 export function CallsListPage() {
   const { token } = useAuth();
-  const [verdict, setVerdict] = useState("");
+  const [filters, setFilters] = useState({ verdict: "", scenario: "" });
+  const [page, setPage] = useState(1);
   const [data, setData] = useState<CallsResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function load(page = 1) {
+  async function load(p = 1) {
     setLoading(true);
-    const p = new URLSearchParams({ page: String(page), page_size: "20" });
-    if (verdict) p.set("verdict", verdict);
-    const r = await fetch(`${API_BASE}/v1/admin/calls?${p}`, { headers: { Authorization: `Bearer ${token}` } });
+    const params = new URLSearchParams({ page: String(p), page_size: "20" });
+    if (filters.verdict) params.set("verdict", filters.verdict);
+    if (filters.scenario) params.set("scenario", filters.scenario);
+    const r = await fetch(`${API_BASE}/v1/admin/calls?${params}`, { headers: { Authorization: `Bearer ${token}` } });
     setData(await r.json());
     setLoading(false);
   }
@@ -34,7 +36,7 @@ export function CallsListPage() {
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex gap-3 items-end">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Вердикт</label>
-          <select value={verdict} onChange={e => setVerdict(e.target.value)}
+          <select value={filters.verdict} onChange={e => setFilters(f => ({ ...f, verdict: e.target.value }))}
             className="border border-gray-300 rounded px-3 py-2 text-sm">
             <option value="">Все</option>
             <option value="scam">Мошенник</option>
@@ -42,7 +44,14 @@ export function CallsListPage() {
             <option value="undetermined">Не определён</option>
           </select>
         </div>
-        <button onClick={() => load(1)} disabled={loading}
+        <input
+          type="text"
+          placeholder="Сценарий"
+          value={filters.scenario}
+          onChange={(e) => setFilters(f => ({ ...f, scenario: e.target.value }))}
+          className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+        <button onClick={() => { setPage(1); load(1); }} disabled={loading}
           className="bg-blue-600 text-white px-5 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
           {loading ? "Загрузка…" : "Показать"}
         </button>
@@ -78,6 +87,21 @@ export function CallsListPage() {
               )}
             </tbody>
           </table>
+          {data.pages > 1 && (
+            <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
+              <button
+                disabled={page === 1}
+                onClick={() => { const p = page - 1; setPage(p); load(p); }}
+                className="px-3 py-1 border rounded disabled:opacity-40"
+              >Назад</button>
+              <span>Стр. {page} / {data.pages}</span>
+              <button
+                disabled={page >= data.pages}
+                onClick={() => { const p = page + 1; setPage(p); load(p); }}
+                className="px-3 py-1 border rounded disabled:opacity-40"
+              >Вперёд</button>
+            </div>
+          )}
         </div>
       )}
     </div>
