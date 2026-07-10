@@ -229,6 +229,15 @@ services:
       - asr-net
 
   call-agent:
+    # Models required: download vosk-model-small-ru into models_cache volume
+    # and Silero v4_ru.pt. Run: docker compose exec call-agent python scripts/verify_call_agent_models.py
+    #
+    # Quick setup:
+    #   wget https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+    #   unzip vosk-model-small-ru-0.22.zip
+    #   docker cp vosk-model-small-ru-0.22 call-agent:/app/models/vosk/
+    #   docker compose exec call-agent python -c "import torch; torch.hub.download_url_to_file(
+    #     'https://models.silero.ai/models/tts/ru/v4_ru.pt', '/app/models/silero/v4_ru.pt')"
     build:
       context: .
       dockerfile: call_agent/Dockerfile

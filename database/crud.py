@@ -1168,6 +1168,26 @@ def add_call_event(db: Session, call_id: str, at: float, speaker: str,
     return ev
 
 
+def bulk_add_call_events(
+    db: Session,
+    events: list[tuple[str, float, str, str, int]],
+) -> None:
+    """Insert multiple call events in a single transaction.
+
+    Each element of *events* is a tuple of
+    ``(call_id, at, speaker, text, scam_delta)``.
+    One ``db.commit()`` is issued after all rows are added.
+    """
+    if not events:
+        return
+    db.add_all([
+        CallEvent(call_id=call_id, at=at, speaker=speaker,
+                  text=text, scam_delta=scam_delta)
+        for call_id, at, speaker, text, scam_delta in events
+    ])
+    db.commit()
+
+
 def finalize_call(db: Session, call_id: str, ended_at, duration_sec, verdict,
                   scenario, confidence, ended_reason, job_id, audio_key) -> Call | None:
     call = db.query(Call).filter(Call.id == call_id).first()

@@ -1,6 +1,8 @@
 """FastAPI service: one WebSocket endpoint drives a live call."""
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 import uuid
 from datetime import datetime
@@ -22,6 +24,7 @@ from tasks.audio_tasks import build_pipeline_chain
 
 settings = get_settings()
 app = FastAPI(title="Call Agent")
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,6 +35,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _startup():
+    _check_call_agent_models()
     app.state.replies = load_replies(settings.replies_path)
     app.state.scenarios = load_scenarios(settings.scenarios_dir)
     app.state.tts = TTSService(settings)
@@ -60,6 +64,48 @@ def _read_wav_bytes(path: str) -> bytes:
         return f.read()
 
 
+# ---------------------------------------------------------------------------
+# Model readiness check — called at startup so the container fails fast.
+# ---------------------------------------------------------------------------
+
+def _check_call_agent_models() -> None:
+    """Fail fast if Vosk or Silero models are missing."""
+    import sys
+    from pathlib import Path
+
+    errors: list[str] = []
+
+    vosk_path = Path(settings.vosk_model_path)
+    if not vosk_path.is_dir() or not any(vosk_path.glob("final.mdl")):
+        errors.append(
+            f"Vosk model not found or incomplete at: {vosk_path}\n"
+            "  Download: https://alphacephei.com/vosk/models\n"
+            "  Example:  wget https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip\n"
+            "            unzip vosk-model-small-ru-0.22.zip -d <models_cache>/vosk/\n"
+            f"  Expected: {vosk_path}/final.mdl"
+        )
+
+    silero_path = Path(settings.silero_model_path)
+    if not silero_path.exists():
+        errors.append(
+            f"Silero TTS model not found at: {silero_path}\n"
+            "  Download: python -c \"import torch; torch.hub.download_url_to_file("
+            "'https://models.silero.ai/models/tts/ru/v4_ru.pt', '<path>')\"\n"
+            f"  Expected: {silero_path}"
+        )
+
+    if errors:
+        print("=" * 70)
+        print("CALL-AGENT MODEL VERIFICATION FAILED")
+        print("=" * 70)
+        for err in errors:
+            print(f"[MISSING] {err}")
+        print("=" * 70)
+        print("Run: docker compose exec call-agent python scripts/verify_call_agent_models.py")
+        print("=" * 70)
+        sys.exit(1)
+
+
 @app.websocket("/ws/call")
 async def ws_call(ws: WebSocket):
     await ws.accept()
@@ -81,31 +127,37 @@ async def ws_call(ws: WebSocket):
     async def send_action(action):
         if action.type == "speak":
             await ws.send_json({"type": "agent_text", "text": action.text})
-            wav = _read_wav_bytes(action.wav_path)
+            # Fix 1: _read_wav_bytes is blocking I/O — run in thread pool
+            wav = await asyncio.to_thread(_read_wav_bytes, action.wav_path)
             recorder.write_agent(_pcm_from_wav(wav))
             await ws.send_bytes(wav)
         elif action.type == "hangup":
             await ws.send_json({"type": "hangup"})
 
-    await send_action(session.start())
+    # Fix 1: session.start() calls TTS synthesis — run in thread pool
+    greeting = await asyncio.to_thread(session.start)
+    await send_action(greeting)
 
     ended_reason = "caller_hung_up"
     try:
         while True:
             chunk = await ws.receive_bytes()
-            actions = session.on_pcm(chunk)
+            # Fix 1: on_pcm runs Vosk AcceptWaveform (CPU-bound) — run in thread pool
+            actions = await asyncio.to_thread(session.on_pcm, chunk)
             for a in actions:
                 await send_action(a)
                 if a.type == "hangup":
                     ended_reason = "detected_scam"
                     raise WebSocketDisconnect()
-            tick = session.tick(settings.not_scam_timeout_sec)
+            # Fix 1: tick may run TTS synthesis — run in thread pool
+            tick = await asyncio.to_thread(session.tick, settings.not_scam_timeout_sec)
             if tick is not None:
                 await send_action(tick)
     except WebSocketDisconnect:
         pass
     finally:
-        _finalize(db, recorder, session, call_id, events, ended_reason)
+        # Fix 3: exception isolation — best-effort finalize even if _finalize raises
+        await _safe_finalize(session, db, recorder, call_id, events, ended_reason)
         db.close()
 
 
@@ -114,7 +166,8 @@ def _pcm_from_wav(wav_bytes: bytes) -> bytes:
     return wav_bytes[44:]
 
 
-def _finalize(db, recorder, session, call_id, events, ended_reason):
+def _finalize(session, db, recorder, call_id, events, ended_reason):
+    """Synchronous finalize — called via asyncio.to_thread from _safe_finalize."""
     result = session.result()
     if result.verdict == "scam":
         ended_reason = "detected_scam"
@@ -122,13 +175,50 @@ def _finalize(db, recorder, session, call_id, events, ended_reason):
     duration_sec = _wav_duration(local)
     minio = MinioStorageClient()
     object_key, job_id = recorder.publish(minio, db)
+
+    # Fix 2: batch all call events in a single transaction instead of one commit per event
+    event_objs = []
+    from database.models import CallEvent
     for at, speaker, text, delta in events:
-        crud.add_call_event(db, call_id, at, speaker, text, delta)
+        event_objs.append(CallEvent(call_id=call_id, at=at, speaker=speaker,
+                                    text=text, scam_delta=delta))
+    if event_objs:
+        db.add_all(event_objs)
+        db.flush()  # write to DB but let finalize_call do the single commit below
+
     crud.finalize_call(db, call_id, ended_at=datetime.utcnow(), duration_sec=duration_sec,
                        verdict=result.verdict, scenario=result.scenario,
                        confidence=result.confidence, ended_reason=result.ended_reason or ended_reason,
                        job_id=job_id, audio_key=object_key)
+    # finalize_call already calls db.commit(), which commits events + call row together
     build_pipeline_chain(job_id=job_id, input_key=object_key).apply_async(task_id=job_id)
+
+
+async def _safe_finalize(session, db, recorder, call_id, events, ended_reason):
+    """Fix 3: Wrap _finalize so that even on failure the DB row is updated with what we know."""
+    try:
+        # Fix 1: _finalize is blocking (MinIO upload, DB commits, Celery dispatch) — run in thread
+        await asyncio.to_thread(_finalize, session, db, recorder, call_id, events, ended_reason)
+    except Exception as exc:
+        logger.exception("_finalize failed for call %s: %s", call_id, exc)
+        # Best-effort: at least mark the call as ended in the DB
+        try:
+            result = session.result()
+            crud.finalize_call(
+                db,
+                call_id=call_id,
+                ended_at=datetime.utcnow(),
+                duration_sec=None,
+                verdict=result.verdict or "undetermined",
+                scenario=result.scenario,
+                confidence=result.confidence,
+                ended_reason=ended_reason,
+                job_id=None,
+                audio_key=None,  # upload failed
+            )
+        except Exception:
+            pass
+        raise  # re-raise so the error is still logged by FastAPI
 
 
 def _wav_duration(path: str) -> float:

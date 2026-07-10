@@ -45,7 +45,15 @@ class MinioStorageClient:
                         rule_filter=Filter(prefix="jobs/"),
                         rule_id="audio-ttl",
                         expiration=Expiration(days=_AUDIO_TTL_DAYS),
-                    )
+                    ),
+                    # Call recordings uploaded under calls/{id}.wav also expire
+                    # after the same TTL as job audio files.
+                    Rule(
+                        ENABLED,
+                        rule_filter=Filter(prefix="calls/"),
+                        rule_id="calls-audio-ttl",
+                        expiration=Expiration(days=_AUDIO_TTL_DAYS),
+                    ),
                 ]
             )
             self.client.set_bucket_lifecycle(self.bucket_name, config)
