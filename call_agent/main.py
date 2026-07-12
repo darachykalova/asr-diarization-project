@@ -170,6 +170,16 @@ def _pcm_from_wav(wav_bytes: bytes) -> bytes:
     return wav_bytes[44:]
 
 
+def _send_call_alert(webhook_url: str | None, call_id: str, verdict: str) -> None:
+    if not webhook_url:
+        return
+    try:
+        from services.webhook_service import send_webhook
+        send_webhook(url=webhook_url, payload={"call_id": call_id, "verdict": verdict})
+    except Exception as exc:
+        logger.warning("Call %s: n8n alert webhook failed: %s", call_id, exc)
+
+
 def _finalize(session, db, recorder, call_id, events, ended_reason):
     """Synchronous finalize — called via asyncio.to_thread from _safe_finalize."""
     result = session.result()
@@ -195,6 +205,7 @@ def _finalize(session, db, recorder, call_id, events, ended_reason):
                        confidence=result.confidence, ended_reason=result.ended_reason or ended_reason,
                        job_id=job_id, audio_key=object_key)
     # finalize_call already calls db.commit(), which commits events + call row together
+    _send_call_alert(settings.n8n_call_alert_webhook_url, call_id, result.verdict)
     build_pipeline_chain(job_id=job_id, input_key=object_key).apply_async(task_id=job_id)
 
 
