@@ -20,6 +20,7 @@ class Settings:
         self.ollama_url = os.getenv("OLLAMA_URL", "http://ollama:11434")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
         self.tts_cache_dir = os.getenv("TTS_CACHE_DIR", "/app/data/tts_cache")
+        self.n8n_call_alert_webhook_url = os.getenv("N8N_CALL_ALERT_WEBHOOK_URL")
 
 
 _settings: Settings | None = None
