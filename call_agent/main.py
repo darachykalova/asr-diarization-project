@@ -205,8 +205,8 @@ def _finalize(session, db, recorder, call_id, events, ended_reason):
                        confidence=result.confidence, ended_reason=result.ended_reason or ended_reason,
                        job_id=job_id, audio_key=object_key)
     # finalize_call already calls db.commit(), which commits events + call row together
-    _send_call_alert(settings.n8n_call_alert_webhook_url, call_id, result.verdict)
     build_pipeline_chain(job_id=job_id, input_key=object_key).apply_async(task_id=job_id)
+    _send_call_alert(settings.n8n_call_alert_webhook_url, call_id, result.verdict)
 
 
 async def _safe_finalize(session, db, recorder, call_id, events, ended_reason):
