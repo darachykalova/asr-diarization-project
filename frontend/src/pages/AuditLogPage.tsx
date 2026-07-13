@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -54,6 +54,8 @@ export function AuditLogPage() {
     } catch (e) { setError(String(e)); }
     finally { setLoading(false); }
   }
+
+  useEffect(() => { fetchLog(1); }, []);
 
   function handleSearch(e: React.FormEvent) { e.preventDefault(); setPage(1); fetchLog(1); }
   function goPage(p: number) { setPage(p); fetchLog(p); }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
@@ -29,6 +29,8 @@ export function CallsListPage() {
     setData(await r.json());
     setLoading(false);
   }
+
+  useEffect(() => { load(); }, []);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
@@ -131,6 +131,8 @@ export function AudioListPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => { fetchList(); }, []);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
