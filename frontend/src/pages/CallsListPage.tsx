@@ -40,6 +40,12 @@ export function CallsListPage() {
     }
   }
 
+  function resetFilters() {
+    setFilters({ verdict: "", scenario: "" });
+  }
+
+  const filtersActive = filters.verdict !== "" || filters.scenario !== "";
+
   useEffect(() => { load(); }, []);
 
   return (
@@ -100,7 +106,19 @@ export function CallsListPage() {
                     </tr>
                   ))}
                   {data.items.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-8 text-gray-400">Звонков нет</td></tr>
+                    <tr>
+                      <td colSpan={5} className="text-center py-8 text-gray-400">
+                        <p>Звонков нет</p>
+                        {filtersActive && (
+                          <button
+                            onClick={resetFilters}
+                            className="mt-2 text-sm text-blue-600 hover:underline"
+                          >
+                            Сбросить фильтры
+                          </button>
+                        )}
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>

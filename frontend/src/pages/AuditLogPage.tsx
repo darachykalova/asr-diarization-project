@@ -57,6 +57,12 @@ export function AuditLogPage() {
     finally { setLoading(false); setInitialLoading(false); }
   }
 
+  function resetFilters() {
+    setUserId(""); setDateFrom(""); setDateTo("");
+  }
+
+  const filtersActive = userId !== "" || dateFrom !== "" || dateTo !== "";
+
   useEffect(() => { fetchLog(1); }, []);
 
   function handleSearch(e: React.FormEvent) { e.preventDefault(); setPage(1); fetchLog(1); }
@@ -111,7 +117,19 @@ export function AuditLogPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {data.items.length === 0 ? (
-                      <tr><td colSpan={4} className="text-center py-8 text-gray-400">Нет событий</td></tr>
+                      <tr>
+                        <td colSpan={4} className="text-center py-8 text-gray-400">
+                          <p>Нет событий</p>
+                          {filtersActive && (
+                            <button
+                              onClick={resetFilters}
+                              className="mt-2 text-sm text-blue-600 hover:underline"
+                            >
+                              Сбросить фильтры
+                            </button>
+                          )}
+                        </td>
+                      </tr>
                     ) : data.items.map(item => (
                       <tr key={item.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-mono text-xs text-gray-600">{fmtDate(item.created_at)}</td>

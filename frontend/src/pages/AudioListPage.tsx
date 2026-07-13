@@ -150,6 +150,8 @@ export function AudioListPage() {
     setPage(1);
   }
 
+  const filtersActive = Object.values(filters).some((v) => v !== "");
+
   function goPage(p: number) {
     setPage(p);
     fetchList(p);
@@ -275,7 +277,17 @@ export function AudioListPage() {
                   <tbody className="divide-y divide-gray-100">
                     {data.items.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-8 text-gray-400">Записей не найдено</td>
+                        <td colSpan={5} className="text-center py-8 text-gray-400">
+                          <p>Записей не найдено</p>
+                          {filtersActive && (
+                            <button
+                              onClick={handleReset}
+                              className="mt-2 text-sm text-blue-600 hover:underline"
+                            >
+                              Сбросить фильтры
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ) : (
                       data.items.map((item) => (
