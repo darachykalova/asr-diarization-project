@@ -1,4 +1,5 @@
 import os, json
+import concurrent.futures
 import call_agent.config as cfg
 from call_agent.scam_detector import load_scenarios, ScamDetector
 from call_agent.dialog_engine import DialogEngine, load_replies
@@ -56,4 +57,85 @@ def test_clean_call_keeps_talking():
     s.start()
     actions = s.on_pcm(b"\x00\x00")
     assert all(a.type != "hangup" for a in actions)
+    assert s.result().verdict == "undetermined"
+
+
+def test_ambiguous_score_without_submitter_falls_through_normally():
+    s = _session(["продиктуйте код из смс"])   # 60 points, below 70 threshold
+    s.start()
+    actions = s.on_pcm(b"\x00\x00")
+    assert all(a.type != "hangup" for a in actions)
+    assert s.result().verdict == "undetermined"
+
+
+def test_ambiguous_score_triggers_background_check_and_stalls():
+    future = concurrent.futures.Future()
+    calls = []
+    def fake_submit(transcript):
+        calls.append(transcript)
+        return future
+
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
+        "продиктуйте код из смс", "повторите пожалуйста код",
+    ]))
+    det = ScamDetector(load_scenarios(SC))
+    dlg = DialogEngine(load_replies(RP))
+    s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(), check_submitter=fake_submit)
+    s.start()
+
+    actions1 = s.on_pcm(b"\x00\x00")
+    assert len(calls) == 1
+    assert actions1[0].type == "speak"
+
+    actions2 = s.on_pcm(b"\x00\x00")   # still pending -> another filler, no second submit
+    assert len(calls) == 1
+    assert actions2[0].type == "speak"
+
+
+def test_semantic_check_confirms_scam_then_hangs_up():
+    future = concurrent.futures.Future()
+    def fake_submit(transcript):
+        return future
+
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
+        "продиктуйте код из смс", "что-нибудь ещё",
+    ]))
+    det = ScamDetector(load_scenarios(SC))
+    dlg = DialogEngine(load_replies(RP))
+    s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(), check_submitter=fake_submit)
+    s.start()
+    s.on_pcm(b"\x00\x00")            # triggers check, returns filler
+    future.set_result(True)          # neural net resolves: scam
+    actions = s.on_pcm(b"\x00\x00")  # next turn: resolve
+
+    assert actions[0].type == "speak"
+    assert actions[0].text in ["Ой, у меня чайник закипел, я перезвоню.",
+                               "Кажется, в дверь звонят, извините, мне пора.",
+                               "Ой, второй телефон звонит, мне надо ответить."]
+    assert actions[1].type == "hangup"
+    result = s.result()
+    assert result.verdict == "scam"
+    assert result.scenario == "fake_bank"
+    assert result.ended_reason == "detected_scam"
+
+
+def test_semantic_check_clears_and_resumes_normal_conversation():
+    future = concurrent.futures.Future()
+    def fake_submit(transcript):
+        return future
+
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
+        "продиктуйте код из смс", "просто болтаю",
+    ]))
+    det = ScamDetector(load_scenarios(SC))
+    dlg = DialogEngine(load_replies(RP))
+    s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(), check_submitter=fake_submit)
+    s.start()
+    s.on_pcm(b"\x00\x00")            # triggers check, returns filler
+    future.set_result(False)         # neural net resolves: not scam
+    actions = s.on_pcm(b"\x00\x00")  # next turn: resumes normally
+
+    assert all(a.type != "hangup" for a in actions)
+    assert actions[0].text in ["Ага… и что?", "Так, а мне что делать?",
+                               "Ой, а куда нажать-то?", "Подождите, я не поняла."]
     assert s.result().verdict == "undetermined"

@@ -31,7 +31,7 @@ class CallResult:
 
 class CallSession:
     def __init__(self, call_id, asr, detector, dialog, tts, recorder,
-                 on_event=None, now=time.monotonic):
+                 on_event=None, now=time.monotonic, check_submitter=None):
         self.call_id = call_id
         self._asr = asr
         self._detector = detector
@@ -40,6 +40,10 @@ class CallSession:
         self._recorder = recorder
         self._on_event = on_event or (lambda *a, **k: None)
         self._now = now
+        self._check_submitter = check_submitter
+        self._pending_check = None
+        self._semantic_verdict = False
+        self._transcript_lines: list[str] = []
         self._state = CallState.GREETING
         self._t0 = None
         self._ended_reason = None
@@ -57,6 +61,29 @@ class CallSession:
         self._state = CallState.TALKING
         return self._emit_agent(self._dialog.greeting())
 
+    def _check_semantically(self) -> list[AgentAction] | None:
+        if self._pending_check is not None:
+            if not self._pending_check.done():
+                return [self._emit_agent(self._dialog.filler())]
+            is_scam = bool(self._pending_check.result())
+            self._pending_check = None
+            if is_scam:
+                self._semantic_verdict = True
+                self._state = CallState.HANGUP
+                self._ended_reason = "detected_scam"
+                speak = self._emit_agent(self._dialog.before_hangup_line())
+                return [speak, AgentAction(type="hangup", wav_path=None, text="")]
+            return None
+
+        if self._check_submitter is not None:
+            _, score, threshold = self._detector.leading_score()
+            if 0 < score < threshold:
+                transcript_so_far = "\n".join(self._transcript_lines)
+                self._pending_check = self._check_submitter(transcript_so_far)
+                return [self._emit_agent(self._dialog.filler())]
+
+        return None
+
     def on_pcm(self, pcm_bytes: bytes) -> list[AgentAction]:
         self._recorder.write_caller(pcm_bytes)
         res = self._asr.accept(pcm_bytes)
@@ -66,7 +93,14 @@ class CallSession:
         hits = self._detector.feed(text)
         delta = sum(h.weight for h in hits)
         self._on_event(self._elapsed(), "caller", text, delta)
+        self._transcript_lines.append(text)
         verdict, scenario, conf = self._detector.verdict()
+
+        if verdict != "scam":
+            semantic_actions = self._check_semantically()
+            if semantic_actions is not None:
+                return semantic_actions
+
         reply = self._dialog.on_caller_utterance(text, verdict)
         if reply.hang_up:
             self._state = CallState.HANGUP
@@ -83,4 +117,8 @@ class CallSession:
 
     def result(self) -> CallResult:
         verdict, scenario, conf = self._detector.verdict()
+        if self._semantic_verdict:
+            leading_key, score, threshold = self._detector.leading_score()
+            conf = min(100, round(score / threshold * 100)) if threshold else 100
+            return CallResult("scam", leading_key or "ai_semantic_check", conf, self._ended_reason)
         return CallResult(verdict, scenario, conf, self._ended_reason)
