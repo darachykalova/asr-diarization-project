@@ -158,9 +158,12 @@ async def ws_call(ws: WebSocket):
                     ended_reason = "detected_scam"
                     raise WebSocketDisconnect()
             # Fix 1: tick may run TTS synthesis — run in thread pool
-            tick = await asyncio.to_thread(session.tick, settings.not_scam_timeout_sec)
-            if tick is not None:
-                await send_action(tick)
+            tick_actions = await asyncio.to_thread(session.tick, settings.not_scam_timeout_sec)
+            for a in tick_actions:
+                await send_action(a)
+                if a.type == "hangup":
+                    ended_reason = "detected_scam"
+                    raise WebSocketDisconnect()
     except WebSocketDisconnect:
         pass
     except Exception:

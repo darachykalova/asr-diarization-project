@@ -139,3 +139,25 @@ def test_semantic_check_clears_and_resumes_normal_conversation():
     assert actions[0].text in ["Ага… и что?", "Так, а мне что делать?",
                                "Ой, а куда нажать-то?", "Подождите, я не поняла."]
     assert s.result().verdict == "undetermined"
+
+
+def test_tick_resolves_pending_check_without_new_utterance():
+    future = concurrent.futures.Future()
+    def fake_submit(transcript):
+        return future
+
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec(["продиктуйте код из смс"]))
+    det = ScamDetector(load_scenarios(SC))
+    dlg = DialogEngine(load_replies(RP))
+    s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(), check_submitter=fake_submit)
+    s.start()
+    s.on_pcm(b"\x00\x00")          # triggers check, returns filler
+    future.set_result(True)        # neural net resolves: scam, but caller has gone silent
+    actions = s.tick(999999)       # no new speech at all — tick alone must notice
+
+    assert actions[0].type == "speak"
+    assert actions[0].text in ["Ой, у меня чайник закипел, я перезвоню.",
+                               "Кажется, в дверь звонят, извините, мне пора.",
+                               "Ой, второй телефон звонит, мне надо ответить."]
+    assert actions[1].type == "hangup"
+    assert s.result().verdict == "scam"

@@ -61,18 +61,28 @@ class CallSession:
         self._state = CallState.TALKING
         return self._emit_agent(self._dialog.greeting())
 
+    def _resolve_pending_check(self) -> list[AgentAction] | None:
+        if self._pending_check is None:
+            return None
+        if not self._pending_check.done():
+            return None
+        is_scam = bool(self._pending_check.result())
+        self._pending_check = None
+        if is_scam:
+            self._semantic_verdict = True
+            self._state = CallState.HANGUP
+            self._ended_reason = "detected_scam"
+            speak = self._emit_agent(self._dialog.before_hangup_line())
+            return [speak, AgentAction(type="hangup", wav_path=None, text="")]
+        return None
+
     def _check_semantically(self) -> list[AgentAction] | None:
         if self._pending_check is not None:
-            if not self._pending_check.done():
+            resolved_actions = self._resolve_pending_check()
+            if resolved_actions is not None:
+                return resolved_actions
+            if self._pending_check is not None:
                 return [self._emit_agent(self._dialog.filler())]
-            is_scam = bool(self._pending_check.result())
-            self._pending_check = None
-            if is_scam:
-                self._semantic_verdict = True
-                self._state = CallState.HANGUP
-                self._ended_reason = "detected_scam"
-                speak = self._emit_agent(self._dialog.before_hangup_line())
-                return [speak, AgentAction(type="hangup", wav_path=None, text="")]
             return None
 
         if self._check_submitter is not None:
@@ -108,12 +118,16 @@ class CallSession:
             return [AgentAction(type="hangup", wav_path=None, text="")]
         return [self._emit_agent(reply.text)]
 
-    def tick(self, not_scam_timeout_sec: int) -> AgentAction | None:
+    def tick(self, not_scam_timeout_sec: int) -> list[AgentAction]:
+        resolved_actions = self._resolve_pending_check()
+        if resolved_actions is not None:
+            return resolved_actions
+
         if self._state == CallState.TALKING and self._elapsed() >= not_scam_timeout_sec:
             self._state = CallState.TAKE_MESSAGE
             self._ended_reason = "took_message"
-            return self._emit_agent(self._dialog.take_message_line())
-        return None
+            return [self._emit_agent(self._dialog.take_message_line())]
+        return []
 
     def result(self) -> CallResult:
         verdict, scenario, conf = self._detector.verdict()
