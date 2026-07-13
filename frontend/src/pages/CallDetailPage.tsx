@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -32,7 +33,7 @@ export function CallDetailPage() {
     await load(); setBusy(false);
   }
 
-  if (!d) return <div className="p-6 text-gray-400">Загрузка…</div>;
+  if (!d) return <div className="p-6"><LoadingSpinner /></div>;
   const c = d.call;
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -53,10 +54,10 @@ export function CallDetailPage() {
           <p className="text-sm text-gray-800">{c.summary ?? "Выжимка ещё не готова."}</p>
         </div>
         {c.job_id && (
-          <a href={`/audio/${c.job_id}`}
+          <Link to={`/audio/${c.job_id}`}
              className="inline-block mt-3 text-sm text-blue-600 hover:underline">
             Открыть запись и полную транскрипцию →
-          </a>
+          </Link>
         )}
       </div>
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
