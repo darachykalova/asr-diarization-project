@@ -4,6 +4,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { Nav } from "./components/Nav";
 import { Notifications } from "./components/Notifications";
+import { MascotCat } from "./components/MascotCat";
 import { AudioDetailPage } from "./pages/AudioDetailPage";
 import { AudioListPage } from "./pages/AudioListPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -55,6 +56,7 @@ export default function App() {
               }
             />
           </Routes>
+          <MascotCat />
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

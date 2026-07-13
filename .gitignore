@@ -13,6 +13,9 @@ data/normalized/
 .idea/
 .vscode/
 
+# Superpowers scratch state (progress ledgers, visual-companion mockups)
+.superpowers/
+
 .env
 
 build*.log
