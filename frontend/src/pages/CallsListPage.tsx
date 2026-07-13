@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -20,6 +21,7 @@ export function CallsListPage() {
   const [data, setData] = useState<CallsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   async function load(p = 1) {
     setLoading(true); setError(null);
@@ -34,6 +36,7 @@ export function CallsListPage() {
       setError(String(e));
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }
 
@@ -65,54 +68,60 @@ export function CallsListPage() {
           {loading ? "Загрузка…" : "Показать"}
         </button>
       </div>
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
-      {data && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left px-4 py-3">Дата</th>
-                <th className="text-left px-4 py-3">Источник</th>
-                <th className="text-left px-4 py-3">Длит.</th>
-                <th className="text-left px-4 py-3">Вердикт</th>
-                <th className="text-left px-4 py-3">Сценарий</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {data.items.map(c => (
-                <tr key={c.call_id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <Link to={`/calls/${c.call_id}`} className="text-blue-600 hover:underline">
-                      {new Date(c.started_at).toLocaleString("ru-RU")}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{c.source}</td>
-                  <td className="px-4 py-3">{c.duration_sec ? `${Math.round(c.duration_sec)} с` : "—"}</td>
-                  <td className="px-4 py-3">{VERDICT[c.verdict] ?? c.verdict}</td>
-                  <td className="px-4 py-3">{c.scenario ?? "—"}</td>
-                </tr>
-              ))}
-              {data.items.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-8 text-gray-400">Звонков нет</td></tr>
+      {initialLoading ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
+          {data && (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-3">Дата</th>
+                    <th className="text-left px-4 py-3">Источник</th>
+                    <th className="text-left px-4 py-3">Длит.</th>
+                    <th className="text-left px-4 py-3">Вердикт</th>
+                    <th className="text-left px-4 py-3">Сценарий</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {data.items.map(c => (
+                    <tr key={c.call_id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <Link to={`/calls/${c.call_id}`} className="text-blue-600 hover:underline">
+                          {new Date(c.started_at).toLocaleString("ru-RU")}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">{c.source}</td>
+                      <td className="px-4 py-3">{c.duration_sec ? `${Math.round(c.duration_sec)} с` : "—"}</td>
+                      <td className="px-4 py-3">{VERDICT[c.verdict] ?? c.verdict}</td>
+                      <td className="px-4 py-3">{c.scenario ?? "—"}</td>
+                    </tr>
+                  ))}
+                  {data.items.length === 0 && (
+                    <tr><td colSpan={5} className="text-center py-8 text-gray-400">Звонков нет</td></tr>
+                  )}
+                </tbody>
+              </table>
+              {data.pages > 1 && (
+                <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => { const p = page - 1; setPage(p); load(p); }}
+                    className="px-3 py-1 border rounded disabled:opacity-40"
+                  >Назад</button>
+                  <span>Стр. {page} / {data.pages}</span>
+                  <button
+                    disabled={page >= data.pages}
+                    onClick={() => { const p = page + 1; setPage(p); load(p); }}
+                    className="px-3 py-1 border rounded disabled:opacity-40"
+                  >Вперёд</button>
+                </div>
               )}
-            </tbody>
-          </table>
-          {data.pages > 1 && (
-            <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-              <button
-                disabled={page === 1}
-                onClick={() => { const p = page - 1; setPage(p); load(p); }}
-                className="px-3 py-1 border rounded disabled:opacity-40"
-              >Назад</button>
-              <span>Стр. {page} / {data.pages}</span>
-              <button
-                disabled={page >= data.pages}
-                onClick={() => { const p = page + 1; setPage(p); load(p); }}
-                className="px-3 py-1 border rounded disabled:opacity-40"
-              >Вперёд</button>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -82,6 +83,7 @@ export function AudioListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   function set(field: keyof typeof EMPTY) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -130,6 +132,7 @@ export function AudioListPage() {
       setError(String(e));
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }
 
@@ -247,72 +250,78 @@ export function AudioListPage() {
         )}
       </form>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
-      )}
-
-      {data && (
+      {initialLoading ? (
+        <LoadingSpinner />
+      ) : (
         <>
-          <div className="text-sm text-gray-500 mb-2">Найдено: {data.total} записей</div>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Файл / ID</th>
-                  <SortHeader col="uploaded_at" label="Дата загрузки" current={sortBy} order={sortOrder} onClick={handleSortClick} />
-                  <SortHeader col="duration"    label="Длительность"  current={sortBy} order={sortOrder} onClick={handleSortClick} />
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Статус</th>
-                  <SortHeader col="speakers"    label="Спикеры"       current={sortBy} order={sortOrder} onClick={handleSortClick} />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {data.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-8 text-gray-400">Записей не найдено</td>
-                  </tr>
-                ) : (
-                  data.items.map((item) => (
-                    <tr key={item.job_id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <Link to={`/audio/${item.job_id}`} className="text-blue-600 hover:underline font-medium">
-                          {item.title}
-                        </Link>
-                        <div className="text-xs text-gray-400 font-mono">{item.job_id}</div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{fmtDate(item.uploaded_at)}</td>
-                      <td className="px-4 py-3 text-gray-600">{fmtDuration(item.duration_sec)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          item.status === "done"       ? "bg-green-100 text-green-700" :
-                          item.status === "failed"     ? "bg-red-100 text-red-700" :
-                          item.status === "processing" ? "bg-blue-100 text-blue-700" :
-                                                         "bg-gray-100 text-gray-600"
-                        }`}>
-                          {STATUS_LABEL[item.status] ?? item.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{item.speaker_count}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
+          )}
 
-          {data.pages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <button onClick={() => goPage(page - 1)} disabled={page <= 1}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
-              <span className="text-sm text-gray-600">Страница {data.page} из {data.pages}</span>
-              <button onClick={() => goPage(page + 1)} disabled={page >= data.pages}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
-            </div>
+          {data && (
+            <>
+              <div className="text-sm text-gray-500 mb-2">Найдено: {data.total} записей</div>
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Файл / ID</th>
+                      <SortHeader col="uploaded_at" label="Дата загрузки" current={sortBy} order={sortOrder} onClick={handleSortClick} />
+                      <SortHeader col="duration"    label="Длительность"  current={sortBy} order={sortOrder} onClick={handleSortClick} />
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Статус</th>
+                      <SortHeader col="speakers"    label="Спикеры"       current={sortBy} order={sortOrder} onClick={handleSortClick} />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {data.items.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-gray-400">Записей не найдено</td>
+                      </tr>
+                    ) : (
+                      data.items.map((item) => (
+                        <tr key={item.job_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <Link to={`/audio/${item.job_id}`} className="text-blue-600 hover:underline font-medium">
+                              {item.title}
+                            </Link>
+                            <div className="text-xs text-gray-400 font-mono">{item.job_id}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{fmtDate(item.uploaded_at)}</td>
+                          <td className="px-4 py-3 text-gray-600">{fmtDuration(item.duration_sec)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                              item.status === "done"       ? "bg-green-100 text-green-700" :
+                              item.status === "failed"     ? "bg-red-100 text-red-700" :
+                              item.status === "processing" ? "bg-blue-100 text-blue-700" :
+                                                             "bg-gray-100 text-gray-600"
+                            }`}>
+                              {STATUS_LABEL[item.status] ?? item.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{item.speaker_count}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {data.pages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <button onClick={() => goPage(page - 1)} disabled={page <= 1}
+                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
+                  <span className="text-sm text-gray-600">Страница {data.page} из {data.pages}</span>
+                  <button onClick={() => goPage(page + 1)} disabled={page >= data.pages}
+                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
+                </div>
+              )}
+            </>
+          )}
+
+          {!data && !loading && !error && (
+            <p className="text-gray-400 text-sm">Нажмите «Найти» для загрузки списка.</p>
           )}
         </>
-      )}
-
-      {!data && !loading && !error && (
-        <p className="text-gray-400 text-sm">Нажмите «Найти» для загрузки списка.</p>
       )}
     </div>
   );

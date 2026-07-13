@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -36,6 +37,7 @@ export function AuditLogPage() {
   const [data, setData] = useState<AuditLogPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   async function fetchLog(p: number = page) {
     setLoading(true); setError(null);
@@ -52,7 +54,7 @@ export function AuditLogPage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setData(await resp.json());
     } catch (e) { setError(String(e)); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setInitialLoading(false); }
   }
 
   useEffect(() => { fetchLog(1); }, []);
@@ -88,53 +90,56 @@ export function AuditLogPage() {
         </button>
       </form>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
-
-      {data && (
+      {initialLoading ? (
+        <LoadingSpinner />
+      ) : (
         <>
-          <div className="text-sm text-gray-500 mb-2">Событий: {data.total}</div>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Время</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Пользователь</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Действие</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Запись</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {data.items.length === 0 ? (
-                  <tr><td colSpan={4} className="text-center py-8 text-gray-400">Нет событий</td></tr>
-                ) : data.items.map(item => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{fmtDate(item.created_at)}</td>
-                    <td className="px-4 py-3 font-medium">{item.user_login}</td>
-                    <td className="px-4 py-3">
-                      <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-medium">
-                        {item.action}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.job_id}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
 
-          {data.pages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <button onClick={() => goPage(page - 1)} disabled={page <= 1}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
-              <span className="text-sm text-gray-600">Страница {data.page} из {data.pages}</span>
-              <button onClick={() => goPage(page + 1)} disabled={page >= data.pages}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
-            </div>
+          {data && (
+            <>
+              <div className="text-sm text-gray-500 mb-2">Событий: {data.total}</div>
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Время</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Пользователь</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Действие</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Запись</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {data.items.length === 0 ? (
+                      <tr><td colSpan={4} className="text-center py-8 text-gray-400">Нет событий</td></tr>
+                    ) : data.items.map(item => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{fmtDate(item.created_at)}</td>
+                        <td className="px-4 py-3 font-medium">{item.user_login}</td>
+                        <td className="px-4 py-3">
+                          <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-medium">
+                            {item.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.job_id}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {data.pages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <button onClick={() => goPage(page - 1)} disabled={page <= 1}
+                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
+                  <span className="text-sm text-gray-600">Страница {data.page} из {data.pages}</span>
+                  <button onClick={() => goPage(page + 1)} disabled={page >= data.pages}
+                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
+                </div>
+              )}
+            </>
           )}
         </>
-      )}
-      {!data && !loading && !error && (
-        <p className="text-gray-400 text-sm">Нажмите «Показать» для загрузки журнала.</p>
       )}
     </div>
   );
