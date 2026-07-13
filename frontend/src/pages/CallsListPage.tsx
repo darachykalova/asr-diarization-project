@@ -19,15 +19,22 @@ export function CallsListPage() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<CallsResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load(p = 1) {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(p), page_size: "20" });
-    if (filters.verdict) params.set("verdict", filters.verdict);
-    if (filters.scenario) params.set("scenario", filters.scenario);
-    const r = await fetch(`${API_BASE}/v1/admin/calls?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    setData(await r.json());
-    setLoading(false);
+    setLoading(true); setError(null);
+    try {
+      const params = new URLSearchParams({ page: String(p), page_size: "20" });
+      if (filters.verdict) params.set("verdict", filters.verdict);
+      if (filters.scenario) params.set("scenario", filters.scenario);
+      const r = await fetch(`${API_BASE}/v1/admin/calls?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setData(await r.json());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -58,6 +65,7 @@ export function CallsListPage() {
           {loading ? "Загрузка…" : "Показать"}
         </button>
       </div>
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
       {data && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm">
