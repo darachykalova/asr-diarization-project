@@ -59,6 +59,14 @@ class ScamDetector:
                     hits.append(Hit(scenario.key, matched, trig.weight))
         return hits
 
+    def leading_score(self) -> tuple[str | None, int, int]:
+        best_key, best_score, best_threshold = None, 0, 0
+        for scenario in self._scenarios:
+            score = self._scores[scenario.key]
+            if score > best_score:
+                best_key, best_score, best_threshold = scenario.key, score, scenario.threshold
+        return (best_key, best_score, best_threshold)
+
     def total_delta_for(self, text: str) -> int:
         return sum(h.weight for h in self.feed(text))
 

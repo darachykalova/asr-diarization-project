@@ -51,3 +51,20 @@ def test_phrase_counted_once_per_feed_but_accumulates_across_feeds():
     d.feed("служба безопасности")   # 40
     d.feed("служба безопасности")   # +40 = 80 -> scam
     assert d.verdict()[0] == "scam"
+
+
+def test_leading_score_below_threshold():
+    d = _detector()
+    d.feed("продиктуйте код из смс пожалуйста")   # 60, below 70
+    key, score, threshold = d.leading_score()
+    assert key == "fake_bank"
+    assert score == 60
+    assert threshold == 70
+
+
+def test_leading_score_zero_when_no_hits():
+    d = _detector()
+    key, score, threshold = d.leading_score()
+    assert key is None
+    assert score == 0
+    assert threshold == 0
