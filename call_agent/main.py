@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -13,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from call_agent.config import get_settings
 from call_agent.scam_detector import load_scenarios, ScamDetector
 from call_agent.dialog_engine import load_replies, DialogEngine
+from call_agent.semantic_check import check_scam_semantically
 from call_agent.streaming_asr import StreamingASR
 from call_agent.tts_service import TTSService
 from call_agent.recorder import CallRecorder
@@ -39,9 +41,11 @@ def _startup():
     app.state.replies = load_replies(settings.replies_path)
     app.state.scenarios = load_scenarios(settings.scenarios_dir)
     app.state.tts = TTSService(settings)
+    app.state.semantic_executor = ThreadPoolExecutor(max_workers=2)
     # Pre-synthesize every canned phrase so calls have zero TTS latency.
     canned = (app.state.replies["greeting"] + app.state.replies["fillers"]
-              + app.state.replies["keep_talking"] + app.state.replies["take_message"])
+              + app.state.replies["keep_talking"] + app.state.replies["take_message"]
+              + app.state.replies["before_hangup"])
     app.state.tts.warm_cache(canned)
     from vosk import Model
     app.state.vosk_model = Model(settings.vosk_model_path)
@@ -52,6 +56,10 @@ def _new_recognizer():
     rec = KaldiRecognizer(app.state.vosk_model, 16000)
     rec.SetWords(True)
     return rec
+
+
+def _submit_semantic_check(transcript: str):
+    return app.state.semantic_executor.submit(check_scam_semantically, transcript, settings)
 
 
 @app.get("/health")
@@ -122,7 +130,7 @@ async def ws_call(ws: WebSocket):
     detector = ScamDetector(app.state.scenarios)
     dialog = DialogEngine(app.state.replies)
     session = CallSession(call_id, asr, detector, dialog, app.state.tts, recorder,
-                          on_event=on_event)
+                          on_event=on_event, check_submitter=_submit_semantic_check)
 
     async def send_action(action):
         if action.type == "speak":
