@@ -36,6 +36,9 @@ class DialogEngine:
     def take_message_line(self) -> str:
         return self._pick("take_message")
 
+    def before_hangup_line(self) -> str:
+        return self._pick("before_hangup")
+
     def on_caller_utterance(self, text: str, verdict: str) -> Reply:
         if verdict == "scam":
             return Reply(text="", kind="hangup", hang_up=True)
