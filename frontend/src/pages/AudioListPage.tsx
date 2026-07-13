@@ -81,6 +81,7 @@ export function AudioListPage() {
   const [data, setData] = useState<AudioListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showMore, setShowMore] = useState(false);
 
   function set(field: keyof typeof EMPTY) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -157,70 +158,14 @@ export function AudioListPage() {
 
       {/* Фильтры */}
       <form onSubmit={handleSearch} className="bg-white rounded-lg shadow p-5 mb-6">
-        <div className="grid grid-cols-4 gap-4">
-          {/* Колонка 1 */}
-          <div className="col-span-2">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[240px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">Поиск по тексту транскрипции</label>
             <input type="text" value={filters.q} onChange={set("q")}
               placeholder="Слово или фраза…"
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-500 mb-1">ID записи</label>
-            <input type="text" value={filters.jobIdQ} onChange={set("jobIdQ")}
-              placeholder="Часть или полный UUID…"
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Имя спикера</label>
-            <input type="text" value={filters.speakerName} onChange={set("speakerName")}
-              placeholder="Часть имени…"
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">ID спикера</label>
-            <input type="number" value={filters.speakerId} onChange={set("speakerId")}
-              placeholder="—" min="1"
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Спикеров от</label>
-            <input type="number" value={filters.minSpeakers} onChange={set("minSpeakers")}
-              placeholder="—" min="0"
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Спикеров до</label>
-            <input type="number" value={filters.maxSpeakers} onChange={set("maxSpeakers")}
-              placeholder="—" min="0"
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Длительность от (мин)</label>
-            <input type="number" value={filters.durationMin} onChange={set("durationMin")}
-              placeholder="—" min="0" step="0.5"
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Длительность до (мин)</label>
-            <input type="number" value={filters.durationMax} onChange={set("durationMax")}
-              placeholder="—" min="0" step="0.5"
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Дата с</label>
-            <input type="date" value={filters.dateFrom} onChange={set("dateFrom")}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Дата по</label>
-            <input type="date" value={filters.dateTo} onChange={set("dateTo")}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-
-          <div>
+          <div className="w-48">
             <label className="block text-xs font-medium text-gray-500 mb-1">Статус</label>
             <select value={filters.status} onChange={set("status")}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -230,17 +175,76 @@ export function AudioListPage() {
               ))}
             </select>
           </div>
-          <div className="col-span-2 flex items-end gap-3">
-            <button type="submit" disabled={loading}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-              {loading ? "Поиск…" : "Найти"}
-            </button>
-            <button type="button" onClick={handleReset}
-              className="px-4 py-2 rounded text-sm text-gray-500 border border-gray-300 hover:bg-gray-50 transition-colors">
-              Сбросить
-            </button>
-          </div>
+          <button type="submit" disabled={loading}
+            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            {loading ? "Поиск…" : "Найти"}
+          </button>
+          <button type="button" onClick={handleReset}
+            className="px-4 py-2 rounded text-sm text-gray-500 border border-gray-300 hover:bg-gray-50 transition-colors">
+            Сбросить
+          </button>
+          <button type="button" onClick={() => setShowMore((v) => !v)}
+            className="text-sm text-blue-600 hover:underline ml-auto">
+            {showMore ? "Скрыть фильтры ▲" : "Ещё фильтры ▾"}
+          </button>
         </div>
+
+        {showMore && (
+          <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">ID записи</label>
+              <input type="text" value={filters.jobIdQ} onChange={set("jobIdQ")}
+                placeholder="Часть или полный UUID…"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Имя спикера</label>
+              <input type="text" value={filters.speakerName} onChange={set("speakerName")}
+                placeholder="Часть имени…"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">ID спикера</label>
+              <input type="number" value={filters.speakerId} onChange={set("speakerId")}
+                placeholder="—" min="1"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Спикеров от</label>
+              <input type="number" value={filters.minSpeakers} onChange={set("minSpeakers")}
+                placeholder="—" min="0"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Спикеров до</label>
+              <input type="number" value={filters.maxSpeakers} onChange={set("maxSpeakers")}
+                placeholder="—" min="0"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Длительность от (мин)</label>
+              <input type="number" value={filters.durationMin} onChange={set("durationMin")}
+                placeholder="—" min="0" step="0.5"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Длительность до (мин)</label>
+              <input type="number" value={filters.durationMax} onChange={set("durationMax")}
+                placeholder="—" min="0" step="0.5"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Дата с</label>
+              <input type="date" value={filters.dateFrom} onChange={set("dateFrom")}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Дата по</label>
+              <input type="date" value={filters.dateTo} onChange={set("dateTo")}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+        )}
       </form>
 
       {error && (
