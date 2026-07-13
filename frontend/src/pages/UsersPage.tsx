@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -35,6 +36,14 @@ export function UsersPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"moderator" | "super_admin">("moderator");
   const [creating, setCreating] = useState(false);
+
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    danger: boolean;
+    onConfirm: () => void;
+  } | null>(null);
 
   async function load() {
     try {
@@ -91,6 +100,34 @@ export function UsersPage() {
     } catch (e) {
       setError(String(e));
     }
+  }
+
+  function askBlockConfirm(u: AdminUser) {
+    setConfirmAction({
+      title: u.is_blocked ? "Разблокировать пользователя?" : "Заблокировать пользователя?",
+      message: u.is_blocked
+        ? `${u.login} снова сможет войти в систему.`
+        : `${u.login} больше не сможет войти в систему.`,
+      confirmLabel: u.is_blocked ? "Разблокировать" : "Заблокировать",
+      danger: !u.is_blocked,
+      onConfirm: () => {
+        patchUser(u.id, { is_blocked: !u.is_blocked });
+        setConfirmAction(null);
+      },
+    });
+  }
+
+  function askRoleConfirm(u: AdminUser, newRole: string) {
+    setConfirmAction({
+      title: "Сменить роль пользователя?",
+      message: `${u.login}: роль изменится на «${ROLE_LABEL[newRole] ?? newRole}».`,
+      confirmLabel: "Сменить роль",
+      danger: false,
+      onConfirm: () => {
+        patchUser(u.id, { role: newRole });
+        setConfirmAction(null);
+      },
+    });
   }
 
   return (
@@ -162,7 +199,7 @@ export function UsersPage() {
                     <td className="px-4 py-3">
                       <select
                         value={u.role}
-                        onChange={e => patchUser(u.id, { role: e.target.value })}
+                        onChange={e => askRoleConfirm(u, e.target.value)}
                         className="border border-gray-200 rounded px-2 py-0.5 text-xs"
                       >
                         <option value="moderator">Модератор</option>
@@ -179,7 +216,7 @@ export function UsersPage() {
                     <td className="px-4 py-3 text-gray-500">{fmtDate(u.created_at)}</td>
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => patchUser(u.id, { is_blocked: !u.is_blocked })}
+                        onClick={() => askBlockConfirm(u)}
                         className={`text-xs px-2 py-1 rounded transition-colors ${
                           u.is_blocked
                             ? "bg-green-50 text-green-700 hover:bg-green-100"
@@ -196,6 +233,16 @@ export function UsersPage() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={confirmAction?.title ?? ""}
+        message={confirmAction?.message ?? ""}
+        confirmLabel={confirmAction?.confirmLabel}
+        danger={confirmAction?.danger}
+        onConfirm={() => confirmAction?.onConfirm()}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   );
 }
