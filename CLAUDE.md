@@ -31,6 +31,10 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 # Frontend (prod build) — раздаётся nginx-контейнером на порту ${FRONTEND_PORT:-5173}
 docker compose build frontend && docker compose up -d frontend
+
+# MCP-сервер (поиск по транскриптам + статистика звонков из Claude Code)
+pip install -r mcp_server/requirements.txt   # один раз, на хосте
+# дальше ничего запускать не надо: Claude Code сам поднимает сервер по .mcp.json
 ```
 
 ## Architecture
@@ -54,6 +58,12 @@ normalize → asr → diarize → merge_align → persist → identify_speakers 
 **Admin console** — веб-интерфейс в `frontend/` (React+Vite). Отдельный JWT-слой в `api/auth_users.py` (не пересекается с API-key auth). Маршруты под `/v1/admin/*` подключены через `api/routes/admin_router.py`. Роли: `moderator` (аудио+транскрипции), `super_admin` (+ пользователи, аудит, настройки). Тест-оверрайд: `app.dependency_overrides[get_current_user] = lambda: mock_admin`.
 
 **Call-agent (анти-скам голосовой агент)** — отдельный сервис `call_agent/` на своём образе `asr-call-agent` (FROM asr-app), порт 8100. Один WebSocket endpoint `/ws/call` (`call_agent/main.py`) ведёт звонок: браузер шлёт PCM16@16kHz чанки, агент отвечает JSON (`agent_text`/`hangup`) + WAV-байтами. Внутри: `streaming_asr.py` (Vosk), `scam_detector.py` (YAML-сценарии в `call_agent/scenarios/`), `dialog_engine.py` (реплики из `persona/replies.yaml`), `tts_service.py` (Silero, WAV-кэш), `recorder.py` (запись → MinIO `calls/` → обычный pipeline chain). Всё блокирующее в endpoint'е обёрнуто `asyncio.to_thread()`. Модели живут в volume `models_cache`: `vosk/<model>/am/final.mdl` и `silero/v4_ru.pt` — образ их не содержит, проверка на старте роняет контейнер с инструкцией по скачиванию. Опционально `N8N_CALL_ALERT_WEBHOOK_URL` — если задан, после каждого звонка `_finalize` в `call_agent/main.py` шлёт best-effort webhook `{call_id, verdict}` на этот URL (обычно локальный n8n: `http://n8n:5678/webhook/call-alert`); сам workflow — `n8n/workflows/call-alert-telegram.json`, импортировать и активировать вручную через n8n UI (http://localhost:5678).
+
+**MCP-сервер** — `mcp_server/server.py` (FastMCP, stdio), конфиг `.mcp.json` в корне.
+Работает на хосте, ходит в Postgres через localhost:5432. Инструменты:
+search_transcripts, get_transcript, list_recent_calls, get_call, call_stats.
+Требует `pip install -r mcp_server/requirements.txt` на хосте и запущенный
+контейнер postgres. Пакет `mcp` не входит в основной requirements.txt намеренно.
 
 **Admin env vars** (обязательны для запуска admin-функционала):
 - `ADMIN_JWT_SECRET` — секрет подписи JWT (обязателен, не должен быть пустым в prod)
