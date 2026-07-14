@@ -35,15 +35,15 @@ def test_bank_scam_crosses_threshold():
 
 def test_single_strong_phrase_enough():
     d = _detector()
-    hits = d.feed("продиктуйте код из смс пожалуйста")        # 60, below 70
-    assert any(h.phrase == "продиктуйте код" for h in hits)
-    assert d.verdict()[0] == "undetermined"
+    hits = d.feed("продиктуйте код из смс пожалуйста")
+    assert any(h.phrase == "код+смс" for h in hits)
+    assert d.verdict()[0] == "scam"          # было undetermined при 60 < 70
 
 
 def test_case_insensitive_and_delta():
     d = _detector()
     delta = sum(h.weight for h in d.feed("СЛУЖБА БЕЗОПАСНОСТИ банка"))
-    assert delta == 40
+    assert delta == 65  # 40 (служба безопасности) + 25 (банк stem)
 
 
 def test_phrase_counted_once_per_feed_but_accumulates_across_feeds():
@@ -55,10 +55,10 @@ def test_phrase_counted_once_per_feed_but_accumulates_across_feeds():
 
 def test_leading_score_below_threshold():
     d = _detector()
-    d.feed("продиктуйте код из смс пожалуйста")   # 60, below 70
+    d.feed("я вам звоню из банка")            # 25, ниже 70
     key, score, threshold = d.leading_score()
     assert key == "fake_bank"
-    assert score == 60
+    assert score == 25
     assert threshold == 70
 
 
@@ -68,3 +68,45 @@ def test_leading_score_zero_when_no_hits():
     assert key is None
     assert score == 0
     assert threshold == 0
+
+
+def test_stems_match_different_word_forms_and_order():
+    d = _detector()
+    hits = d.feed("мне нужен смс код который пришёл на ваш телефон")
+    assert any(h.phrase == "код+смс" for h in hits)
+
+
+def test_stems_normalize_yo():
+    d = _detector()
+    # «пришел» без ё должен совпасть так же, как «пришёл»
+    hits = d.feed("код который пришел вам на телефон")
+    assert any(h.phrase == "код+приш" for h in hits)
+
+
+def test_iz_banka_scores_low_but_nonzero():
+    d = _detector()
+    delta = sum(h.weight for h in d.feed("я вам звоню из банка"))
+    assert 0 < delta < 70
+    assert d.verdict()[0] == "undetermined"
+
+
+def test_real_call_2026_07_13_regression():
+    """Реальные реплики звонка 3a31f00e (Vosk) — раньше все давали 0 баллов."""
+    d = _detector()
+    d.feed("я бы хотела узнать ваш код который пришёл вам на телефон")
+    d.feed("мне нужен смс код который пришёл на ваш телефон")
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "scam"
+    assert scenario == "fake_bank"
+
+
+def test_prodiktovat_infinitive_matches():
+    d = _detector()
+    hits = d.feed("зайти в смс и продиктовать мне цифры которые у вас в коде")
+    assert any(h.phrase == "продикт+код" for h in hits)
+
+
+def test_innocent_code_mention_stays_undetermined():
+    d = _detector()
+    d.feed("я тебе код от домофона пришлю вечером")
+    assert d.verdict()[0] == "undetermined"

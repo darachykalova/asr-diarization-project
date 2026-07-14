@@ -3,15 +3,23 @@ from __future__ import annotations
 
 import glob
 import os
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 
 import yaml
+
+_WORD_RE = re.compile(r"[а-яёa-z0-9]+")
+
+
+def _normalize(text: str) -> str:
+    return text.lower().replace("ё", "е")
 
 
 @dataclass
 class Trigger:
-    phrases: list[str]
-    weight: int
+    phrases: list[str] = field(default_factory=list)
+    stems: list[str] = field(default_factory=list)
+    weight: int = 0
 
 
 @dataclass
@@ -34,8 +42,13 @@ def load_scenarios(dir_path: str) -> list[Scenario]:
     for path in sorted(glob.glob(os.path.join(dir_path, "*.yaml"))):
         with open(path, encoding="utf-8") as f:
             raw = yaml.safe_load(f)
-        triggers = [Trigger(phrases=[p.lower() for p in t["phrases"]], weight=int(t["weight"]))
-                    for t in raw["triggers"]]
+        triggers = []
+        for t in raw["triggers"]:
+            phrases = [_normalize(p) for p in t.get("phrases", [])]
+            stems = [_normalize(s) for s in t.get("stems", [])]
+            if not phrases and not stems:
+                raise ValueError(f"{path}: trigger has neither phrases nor stems")
+            triggers.append(Trigger(phrases=phrases, stems=stems, weight=int(t["weight"])))
         scenarios.append(Scenario(
             key=raw["key"], name=raw["name"],
             threshold=int(raw["threshold"]), triggers=triggers,
@@ -49,11 +62,16 @@ class ScamDetector:
         self._scores: dict[str, int] = {s.key: 0 for s in scenarios}
 
     def feed(self, text: str) -> list[Hit]:
-        low = text.lower()
+        low = _normalize(text)
+        tokens = _WORD_RE.findall(low)
         hits: list[Hit] = []
         for scenario in self._scenarios:
             for trig in scenario.triggers:
                 matched = next((p for p in trig.phrases if p in low), None)
+                if matched is None and trig.stems:
+                    if all(any(tok.startswith(stem) for tok in tokens)
+                           for stem in trig.stems):
+                        matched = "+".join(trig.stems)
                 if matched is not None:
                     self._scores[scenario.key] += trig.weight
                     hits.append(Hit(scenario.key, matched, trig.weight))

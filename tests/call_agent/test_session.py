@@ -61,7 +61,7 @@ def test_clean_call_keeps_talking():
 
 
 def test_ambiguous_score_without_submitter_falls_through_normally():
-    s = _session(["продиктуйте код из смс"])   # 60 points, below 70 threshold
+    s = _session(["я вам звоню из банка"])   # 25 points, below 70 threshold
     s.start()
     actions = s.on_pcm(b"\x00\x00")
     assert all(a.type != "hangup" for a in actions)
@@ -76,7 +76,7 @@ def test_ambiguous_score_triggers_background_check_and_stalls():
         return future
 
     asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
-        "продиктуйте код из смс", "повторите пожалуйста код",
+        "я вам звоню из банка", "повторите пожалуйста код",
     ]))
     det = ScamDetector(load_scenarios(SC))
     dlg = DialogEngine(load_replies(RP))
@@ -98,7 +98,7 @@ def test_semantic_check_confirms_scam_then_hangs_up():
         return future
 
     asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
-        "продиктуйте код из смс", "что-нибудь ещё",
+        "я вам звоню из банка", "что-нибудь ещё",
     ]))
     det = ScamDetector(load_scenarios(SC))
     dlg = DialogEngine(load_replies(RP))
@@ -125,7 +125,7 @@ def test_semantic_check_clears_and_resumes_normal_conversation():
         return future
 
     asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
-        "продиктуйте код из смс", "просто болтаю",
+        "я вам звоню из банка", "просто болтаю",
     ]))
     det = ScamDetector(load_scenarios(SC))
     dlg = DialogEngine(load_replies(RP))
@@ -146,7 +146,7 @@ def test_tick_resolves_pending_check_without_new_utterance():
     def fake_submit(transcript):
         return future
 
-    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec(["продиктуйте код из смс"]))
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec(["я вам звоню из банка"]))
     det = ScamDetector(load_scenarios(SC))
     dlg = DialogEngine(load_replies(RP))
     s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(), check_submitter=fake_submit)
