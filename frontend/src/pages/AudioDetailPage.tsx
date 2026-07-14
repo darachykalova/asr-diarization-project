@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 
@@ -64,6 +65,8 @@ const SPEAKER_COLORS = [
 export function AudioDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const { token } = useAuth();
+  const navigate = useNavigate();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const [item, setItem] = useState<AudioItem | null>(null);
   const [itemError, setItemError] = useState<string | null>(null);
@@ -108,6 +111,24 @@ export function AudioDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!jobId) return;
+    setItemError(null);
+    try {
+      const resp = await fetch(`${API_BASE}/v1/admin/audio/${jobId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail ?? `HTTP ${resp.status}`);
+      }
+      navigate("/audio");
+    } catch (e) {
+      setItemError(String(e));
+    }
+  }
+
   const speakerColorMap: Record<string, string> = {};
   revealed?.speakers.forEach((s, i) => {
     speakerColorMap[s.speaker] = SPEAKER_COLORS[i % SPEAKER_COLORS.length];
@@ -138,14 +159,22 @@ export function AudioDetailPage() {
                   <h1 className="text-xl font-bold text-gray-800">{item.title}</h1>
                   <p className="text-xs text-gray-400 mt-0.5">{item.job_id}</p>
                 </div>
-                <span className={`mt-1 inline-block px-2.5 py-1 rounded-full text-xs font-medium ${
-                  item.status === "done"       ? "bg-green-100 text-green-700" :
-                  item.status === "failed"     ? "bg-red-100 text-red-700" :
-                  item.status === "processing" ? "bg-blue-100 text-blue-700" :
-                                                 "bg-gray-100 text-gray-600"
-                }`}>
-                  {STATUS_LABEL[item.status] ?? item.status}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className={`mt-1 inline-block px-2.5 py-1 rounded-full text-xs font-medium ${
+                    item.status === "done"       ? "bg-green-100 text-green-700" :
+                    item.status === "failed"     ? "bg-red-100 text-red-700" :
+                    item.status === "processing" ? "bg-blue-100 text-blue-700" :
+                                                   "bg-gray-100 text-gray-600"
+                  }`}>
+                    {STATUS_LABEL[item.status] ?? item.status}
+                  </span>
+                  <button
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    className="px-3 py-1.5 rounded text-sm text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                  >
+                    Удалить
+                  </button>
+                </div>
               </div>
               <dl className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                 <div>
@@ -240,6 +269,18 @@ export function AudioDetailPage() {
           </div>
         </>
       )}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Удалить аудиозапись?"
+        message="Запись, транскрипция и файл будут удалены без возможности восстановления."
+        confirmLabel="Удалить"
+        danger
+        onConfirm={() => {
+          setConfirmDeleteOpen(false);
+          handleDelete();
+        }}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   );
 }
