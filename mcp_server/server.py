@@ -5,6 +5,7 @@
 БД доступна через проброшенный порт Postgres (localhost:5432);
 DATABASE_URL по умолчанию из database/database.py подходит как есть.
 """
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -18,7 +19,11 @@ from mcp.server.fastmcp import FastMCP  # noqa: E402
 from database import crud  # noqa: E402
 from database.session import SessionLocal  # noqa: E402
 
-mcp = FastMCP("asr-diarization")
+mcp = FastMCP(
+    "asr-diarization",
+    host="0.0.0.0",  # в docker-сети слушаем все интерфейсы; наружу порт открывает compose
+    port=int(os.getenv("MCP_HTTP_PORT", "8200")),
+)
 
 
 def _clean(value):
@@ -96,5 +101,43 @@ def call_stats(days: int = 7) -> dict:
         db.close()
 
 
+def _build_http_app():
+    """Streamable-HTTP приложение с Bearer-авторизацией.
+
+    Без MCP_AUTH_TOKEN отказывается собираться: HTTP-режим открывает
+    транскрипты по сети, пускать туда без токена нельзя.
+    """
+    token = os.getenv("MCP_AUTH_TOKEN", "")
+    if not token:
+        raise SystemExit(
+            "MCP_AUTH_TOKEN не задан — HTTP-режим без авторизации запрещён. "
+            "Добавь MCP_AUTH_TOKEN в .env"
+        )
+
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
+
+    class BearerAuthMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            if request.headers.get("authorization") != f"Bearer {token}":
+                return JSONResponse({"error": "unauthorized"}, status_code=401)
+            return await call_next(request)
+
+    # FastMCP кэширует session manager на первом вызове streamable_http_app()
+    # и он одноразовый (RuntimeError при повторном run() того же инстанса).
+    # В проде _build_http_app() вызывается один раз за процесс — не важно;
+    # но чтобы функция была идемпотентна (повторные вызовы в одном процессе,
+    # как в тестах), сбрасываем кэш перед каждой сборкой.
+    mcp._session_manager = None
+    app = mcp.streamable_http_app()  # эндпоинт протокола: POST /mcp
+    app.add_middleware(BearerAuthMiddleware)
+    return app
+
+
 if __name__ == "__main__":
-    mcp.run()  # транспорт по умолчанию — stdio
+    if os.getenv("MCP_TRANSPORT", "stdio") == "http":
+        import uvicorn
+        uvicorn.run(_build_http_app(), host="0.0.0.0",
+                    port=int(os.getenv("MCP_HTTP_PORT", "8200")))
+    else:
+        mcp.run()  # stdio — локальный режим для Claude Code

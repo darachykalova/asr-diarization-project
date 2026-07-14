@@ -65,6 +65,12 @@ search_transcripts, get_transcript, list_recent_calls, get_call, call_stats.
 Требует `pip install -r mcp_server/requirements.txt` на хосте и запущенный
 контейнер postgres. Пакет `mcp` не входит в основной requirements.txt намеренно.
 
+HTTP-режим (для команды): сервис `mcp-server` в docker-compose, порт 8200,
+образ FROM asr-app (пересборка: `docker compose build api && docker compose
+build mcp-server`). Обязателен `MCP_AUTH_TOKEN` в .env — без него контейнер
+не стартует. Подключение: `claude mcp add --transport http asr-remote
+http://<host>:8200/mcp --header "Authorization: Bearer <токен>"`.
+
 **Admin env vars** (обязательны для запуска admin-функционала):
 - `ADMIN_JWT_SECRET` — секрет подписи JWT (обязателен, не должен быть пустым в prod)
 - `ADMIN_JWT_TTL_HOURS` — TTL токена (по умолчанию `8`)

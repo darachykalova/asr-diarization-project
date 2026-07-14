@@ -280,6 +280,24 @@ services:
     networks:
       - asr-net
 
+  mcp-server:
+    build:
+      context: .
+      dockerfile: mcp_server/Dockerfile
+    image: asr-mcp-server
+    restart: unless-stopped
+    env_file:
+      - .env          # DATABASE_URL там уже указывает на postgres:5432
+    environment:
+      MCP_TRANSPORT: "http"
+    ports:
+      - "${MCP_HTTP_PORT:-8200}:8200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - asr-net
+
 networks:
   asr-net:
     driver: bridge
