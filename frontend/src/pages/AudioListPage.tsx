@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -84,6 +85,7 @@ export function AudioListPage() {
   const [error, setError] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [pendingDelete, setPendingDelete] = useState<AudioListItem | null>(null);
 
   function set(field: keyof typeof EMPTY) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -133,6 +135,27 @@ export function AudioListPage() {
     } finally {
       setLoading(false);
       setInitialLoading(false);
+    }
+  }
+
+  async function handleDelete(jobId: string) {
+    setError(null);
+    try {
+      const resp = await fetch(`${API_BASE}/v1/admin/audio/${jobId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail ?? `HTTP ${resp.status}`);
+      }
+      setData((d) =>
+        d
+          ? { ...d, items: d.items.filter((i) => i.job_id !== jobId), total: d.total - 1 }
+          : d
+      );
+    } catch (e) {
+      setError(String(e));
     }
   }
 
@@ -272,12 +295,13 @@ export function AudioListPage() {
                       <SortHeader col="duration"    label="Длительность"  current={sortBy} order={sortOrder} onClick={handleSortClick} />
                       <th className="text-left px-4 py-3 font-medium text-gray-600">Статус</th>
                       <SortHeader col="speakers"    label="Спикеры"       current={sortBy} order={sortOrder} onClick={handleSortClick} />
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Действия</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {data.items.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-8 text-gray-400">
+                        <td colSpan={6} className="text-center py-8 text-gray-400">
                           <p>Записей не найдено</p>
                           {filtersActive && (
                             <button
@@ -311,6 +335,14 @@ export function AudioListPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-gray-600">{item.speaker_count}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => setPendingDelete(item)}
+                              className="text-red-600 hover:underline text-sm"
+                            >
+                              Удалить
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -335,6 +367,22 @@ export function AudioListPage() {
           )}
         </>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Удалить аудиозапись?"
+        message={
+          pendingDelete
+            ? `«${pendingDelete.title}» будет удалена без возможности восстановления.`
+            : ""
+        }
+        confirmLabel="Удалить"
+        danger
+        onConfirm={() => {
+          if (pendingDelete) handleDelete(pendingDelete.job_id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
