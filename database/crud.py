@@ -537,6 +537,39 @@ def list_transcripts(
         db.close()
 
 
+def search_transcripts_fulltext(query: str, limit: int = 10) -> list[dict]:
+    """Полнотекстовый поиск по транскриптам.
+
+    Вектор построен с конфигом 'simple' (см. pipeline_tasks.persist) —
+    запрос обязан использовать тот же конфиг.
+    """
+    db = SessionLocal()
+    try:
+        sql = text("""
+            SELECT t.job_id, t.language, t.duration_sec, t.created_at,
+                   ts_headline('simple', t.full_text,
+                               plainto_tsquery('simple', :q),
+                               'MaxWords=25, MinWords=10') AS snippet
+            FROM transcripts t
+            WHERE t.full_text_vector @@ plainto_tsquery('simple', :q)
+            ORDER BY ts_rank(t.full_text_vector, plainto_tsquery('simple', :q)) DESC
+            LIMIT :limit
+        """)
+        rows = db.execute(sql, {"q": query, "limit": limit}).mappings().all()
+        return [
+            {
+                "job_id": r["job_id"],
+                "language": r["language"],
+                "duration_sec": r["duration_sec"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "snippet": r["snippet"],
+            }
+            for r in rows
+        ]
+    finally:
+        db.close()
+
+
 def get_segments_by_job_id(
     job_id: str,
     speaker_id: int | None = None,
