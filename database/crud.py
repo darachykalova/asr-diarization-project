@@ -1277,3 +1277,19 @@ def get_call_detail(db: Session, call_id: str) -> dict | None:
         "events": [{"at": e.at, "speaker": e.speaker, "text": e.text,
                     "scam_delta": e.scam_delta} for e in events],
     }
+
+
+def call_verdict_stats(db: Session, date_from=None) -> dict:
+    """Сводка по звонкам: всего, разбивка по вердиктам, средняя длительность."""
+    q = db.query(Call.verdict, func.count(Call.id))
+    dur_q = db.query(func.avg(Call.duration_sec)).filter(Call.duration_sec.isnot(None))
+    if date_from is not None:
+        q = q.filter(Call.started_at >= date_from)
+        dur_q = dur_q.filter(Call.started_at >= date_from)
+    by_verdict = dict(q.group_by(Call.verdict).all())
+    avg_duration = dur_q.scalar()
+    return {
+        "total": sum(by_verdict.values()),
+        "by_verdict": by_verdict,
+        "avg_duration_sec": float(avg_duration) if avg_duration is not None else None,
+    }
