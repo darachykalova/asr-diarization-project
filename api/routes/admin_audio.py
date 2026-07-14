@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 
 from api.auth import get_db
 from api.auth_users import get_current_user
+from api.routes.transcripts import _delete_transcript_everywhere
 from database import crud
 from api.routes.transcriptions import (
     _save_upload_to_temp_file,
@@ -118,6 +119,30 @@ def get_audio_item(
     if item is None:
         raise HTTPException(status_code=404, detail="Запись не найдена")
     return item
+
+
+@router.delete("/{job_id}")
+def delete_audio(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    result = _delete_transcript_everywhere(job_id)
+    if not result.get("deleted"):
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+
+    crud.create_access_log(
+        db, user_id=current_user.id, job_id=result["job_id"], action="delete"
+    )
+
+    return {
+        "message": f"Аудиозапись {result['job_id']} удалена",
+        "job_id": result["job_id"],
+        "audio_key": result["audio_key"],
+        "minio_deleted": result["minio_deleted"],
+        "qdrant_deleted": result["qdrant_deleted"],
+        "postgres_deleted": result["postgres_deleted"],
+    }
 
 
 @router.post("/upload", response_model=TranscriptionTaskResponse, status_code=202)
