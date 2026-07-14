@@ -20,6 +20,7 @@ docker compose build --build-arg HF_TOKEN=hf_xxx
 docker compose exec api python scripts/create_api_key.py
 docker compose exec worker python scripts/verify_models.py
 docker compose exec call-agent python scripts/verify_call_agent_models.py
+docker compose exec ollama ollama pull qwen2.5:3b   # модель семантической проверки мошенничества (иначе проверка всегда отвечает «не мошенник», см. warning в логах call-agent)
 
 # Admin console — первый запуск
 docker compose exec api python scripts/bootstrap_admin.py --login admin --role super_admin

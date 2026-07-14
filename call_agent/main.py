@@ -49,6 +49,7 @@ def _startup():
     app.state.tts.warm_cache(canned)
     from vosk import Model
     app.state.vosk_model = Model(settings.vosk_model_path)
+    _check_ollama_ready()
 
 
 def _new_recognizer():
@@ -112,6 +113,25 @@ def _check_call_agent_models() -> None:
         print("Run: docker compose exec call-agent python scripts/verify_call_agent_models.py")
         print("=" * 70)
         sys.exit(1)
+
+
+def _check_ollama_ready() -> None:
+    """Warn (never crash) if Ollama is unreachable or the model is not pulled."""
+    import httpx
+    try:
+        resp = httpx.get(f"{settings.ollama_url}/api/tags", timeout=5)
+        models = [m.get("name", "") for m in resp.json().get("models", [])]
+        if not any(m == settings.ollama_model
+                   or m.startswith(settings.ollama_model + ":") for m in models):
+            logger.warning(
+                "Ollama model %r not found (available: %s). Semantic scam check will "
+                "always answer 'not scam'. Pull it: "
+                "docker compose exec ollama ollama pull %s",
+                settings.ollama_model, models or "none", settings.ollama_model)
+    except Exception as exc:
+        logger.warning(
+            "Ollama not reachable at %s (%s). Semantic scam check disabled.",
+            settings.ollama_url, exc)
 
 
 @app.websocket("/ws/call")
