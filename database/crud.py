@@ -543,6 +543,7 @@ def search_transcripts_fulltext(query: str, limit: int = 10) -> list[dict]:
     Вектор построен с конфигом 'simple' (см. pipeline_tasks.persist) —
     запрос обязан использовать тот же конфиг.
     """
+    limit = max(1, limit)
     db = SessionLocal()
     try:
         sql = text("""

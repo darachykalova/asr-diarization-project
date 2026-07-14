@@ -114,12 +114,18 @@ def _build_http_app():
             "Добавь MCP_AUTH_TOKEN в .env"
         )
 
+    import hmac
+
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.responses import JSONResponse
 
+    expected = f"Bearer {token}"
+
     class BearerAuthMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
-            if request.headers.get("authorization") != f"Bearer {token}":
+            if not hmac.compare_digest(
+                request.headers.get("authorization") or "", expected
+            ):
                 return JSONResponse({"error": "unauthorized"}, status_code=401)
             return await call_next(request)
 

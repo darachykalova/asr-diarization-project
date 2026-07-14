@@ -48,3 +48,8 @@ def test_search_finds_transcript_by_word():
 def test_search_no_match_returns_empty():
     results = crud.search_transcripts_fulltext("абракадабрищенко")
     assert results == []
+
+
+def test_search_negative_limit_does_not_raise():
+    results = crud.search_transcripts_fulltext("отчёт", limit=-5)
+    assert isinstance(results, list)
