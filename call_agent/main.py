@@ -130,7 +130,8 @@ async def ws_call(ws: WebSocket):
     detector = ScamDetector(app.state.scenarios)
     dialog = DialogEngine(app.state.replies)
     session = CallSession(call_id, asr, detector, dialog, app.state.tts, recorder,
-                          on_event=on_event, check_submitter=_submit_semantic_check)
+                          on_event=on_event, check_submitter=_submit_semantic_check,
+                          semantic_check_every_n=settings.semantic_check_every_n)
 
     async def send_action(action):
         if action.type == "speak":

@@ -21,6 +21,7 @@ class Settings:
         self.ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
         self.tts_cache_dir = os.getenv("TTS_CACHE_DIR", "/app/data/tts_cache")
         self.n8n_call_alert_webhook_url = os.getenv("N8N_CALL_ALERT_WEBHOOK_URL")
+        self.semantic_check_every_n = int(os.getenv("SEMANTIC_CHECK_EVERY_N_UTTERANCES", "2"))
 
 
 _settings: Settings | None = None

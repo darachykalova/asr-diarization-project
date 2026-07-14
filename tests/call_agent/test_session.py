@@ -161,3 +161,81 @@ def test_tick_resolves_pending_check_without_new_utterance():
                                "Ой, второй телефон звонит, мне надо ответить."]
     assert actions[1].type == "hangup"
     assert s.result().verdict == "scam"
+
+
+def test_periodic_check_fires_after_n_utterances_with_zero_score():
+    future = concurrent.futures.Future()
+    calls = []
+    def fake_submit(transcript):
+        calls.append(transcript)
+        return future
+
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
+        "привет как дела", "я ваша соседка сверху",
+    ]))
+    det = ScamDetector(load_scenarios(SC))
+    dlg = DialogEngine(load_replies(RP))
+    s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(),
+                    check_submitter=fake_submit, semantic_check_every_n=2)
+    s.start()
+
+    s.on_pcm(b"\x00\x00")              # 1-я реплика: рано, проверки нет
+    assert calls == []
+    actions = s.on_pcm(b"\x00\x00")    # 2-я реплика: периодическая проверка
+    assert len(calls) == 1
+    assert "привет как дела" in calls[0]
+    assert "я ваша соседка сверху" in calls[0]
+    assert actions[0].type == "speak"  # filler, пока ждём нейросеть
+
+
+def test_periodic_check_counter_resets_after_resolution():
+    futures = [concurrent.futures.Future(), concurrent.futures.Future()]
+    calls = []
+    def fake_submit(transcript):
+        calls.append(transcript)
+        return futures[len(calls) - 1]
+
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
+        "привет как дела",        # 1: счётчик 1
+        "я ваша соседка",         # 2: submit #1, счётчик 0
+        "зашла за солью",         # 3: future ещё не готов -> filler
+        "и за сахаром",           # 4: резолвим False до этой реплики
+        "и за спичками",          # 5: счётчик снова 2 -> submit #2
+    ]))
+    det = ScamDetector(load_scenarios(SC))
+    dlg = DialogEngine(load_replies(RP))
+    s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(),
+                    check_submitter=fake_submit, semantic_check_every_n=2)
+    s.start()
+    s.on_pcm(b"\x00\x00")   # 1
+    s.on_pcm(b"\x00\x00")   # 2 -> submit #1
+    assert len(calls) == 1
+    s.on_pcm(b"\x00\x00")   # 3 -> pending, filler
+    futures[0].set_result(False)
+    s.on_pcm(b"\x00\x00")   # 4 -> resolve(False), счётчик сброшен -> обычный ответ
+    assert len(calls) == 1
+    s.on_pcm(b"\x00\x00")   # 5 -> накопилось 2 новых реплики -> submit #2
+    assert len(calls) == 2
+
+
+def test_semantic_scam_via_periodic_check_hangs_up():
+    future = concurrent.futures.Future()
+    def fake_submit(transcript):
+        return future
+
+    asr = StreamingASR(cfg.Settings(), recognizer=ScriptRec([
+        "здравствуйте это ваш оператор связи",   # 0 баллов правил
+        "нужно продлить договор на симкарту",     # 0 баллов -> периодическая проверка
+        "вы меня слышите",
+    ]))
+    det = ScamDetector(load_scenarios(SC))
+    dlg = DialogEngine(load_replies(RP))
+    s = CallSession("c1", asr, det, dlg, FakeTTS(), NullRecorder(),
+                    check_submitter=fake_submit, semantic_check_every_n=2)
+    s.start()
+    s.on_pcm(b"\x00\x00")
+    s.on_pcm(b"\x00\x00")            # submit
+    future.set_result(True)          # нейросеть: мошенник
+    actions = s.on_pcm(b"\x00\x00")  # resolve -> прощание + hangup
+    assert actions[-1].type == "hangup"
+    assert s.result().verdict == "scam"

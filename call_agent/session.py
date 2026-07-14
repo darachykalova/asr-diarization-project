@@ -31,7 +31,8 @@ class CallResult:
 
 class CallSession:
     def __init__(self, call_id, asr, detector, dialog, tts, recorder,
-                 on_event=None, now=time.monotonic, check_submitter=None):
+                 on_event=None, now=time.monotonic, check_submitter=None,
+                 semantic_check_every_n: int = 2):
         self.call_id = call_id
         self._asr = asr
         self._detector = detector
@@ -41,6 +42,8 @@ class CallSession:
         self._on_event = on_event or (lambda *a, **k: None)
         self._now = now
         self._check_submitter = check_submitter
+        self._check_every_n = semantic_check_every_n
+        self._utterances_since_check = 0
         self._pending_check = None
         self._semantic_verdict = False
         self._transcript_lines: list[str] = []
@@ -87,7 +90,10 @@ class CallSession:
 
         if self._check_submitter is not None:
             _, score, threshold = self._detector.leading_score()
-            if 0 < score < threshold:
+            rules_ambiguous = 0 < score < threshold
+            periodic_due = self._utterances_since_check >= self._check_every_n
+            if rules_ambiguous or periodic_due:
+                self._utterances_since_check = 0
                 transcript_so_far = "\n".join(self._transcript_lines)
                 self._pending_check = self._check_submitter(transcript_so_far)
                 return [self._emit_agent(self._dialog.filler())]
@@ -104,6 +110,7 @@ class CallSession:
         delta = sum(h.weight for h in hits)
         self._on_event(self._elapsed(), "caller", text, delta)
         self._transcript_lines.append(text)
+        self._utterances_since_check += 1
         verdict, scenario, conf = self._detector.verdict()
 
         if verdict != "scam":
