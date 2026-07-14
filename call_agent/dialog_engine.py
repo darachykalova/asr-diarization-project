@@ -23,9 +23,15 @@ class DialogEngine:
     def __init__(self, replies: dict, rng: random.Random | None = None):
         self._replies = replies
         self._rng = rng or random.Random()
+        self._last: dict[str, str] = {}
 
     def _pick(self, key: str) -> str:
-        return self._rng.choice(self._replies[key])
+        options = self._replies[key]
+        last = self._last.get(key)
+        candidates = [o for o in options if o != last] or options
+        choice = self._rng.choice(candidates)
+        self._last[key] = choice
+        return choice
 
     def greeting(self) -> str:
         return self._pick("greeting")

@@ -49,3 +49,29 @@ def test_before_hangup_line():
 def test_take_message_line():
     e = _engine()
     assert e.take_message_line() == "Хозяина сейчас нет дома, он перезвонит. Что передать?"
+
+
+def test_filler_never_repeats_immediately():
+    e = _engine()
+    prev = e.filler()
+    for _ in range(50):
+        cur = e.filler()
+        assert cur != prev, "одна и та же stalling-фраза дважды подряд"
+        prev = cur
+
+
+def test_keep_talking_never_repeats_immediately():
+    e = _engine()
+    prev = e.on_caller_utterance("что", verdict="undetermined").text
+    for _ in range(50):
+        cur = e.on_caller_utterance("что", verdict="undetermined").text
+        assert cur != prev
+        prev = cur
+
+
+def test_single_option_key_still_repeats():
+    # take_message содержит один вариант — повторы допустимы и не должны падать
+    e = _engine()
+    line = "Хозяина сейчас нет дома, он перезвонит. Что передать?"
+    assert e.take_message_line() == line
+    assert e.take_message_line() == line
