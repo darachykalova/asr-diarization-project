@@ -23,12 +23,13 @@ export function CallsListPage() {
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  async function load(p = 1) {
+  async function load(p = 1, overrides?: { verdict?: string; scenario?: string }) {
+    const f = { ...filters, ...overrides };
     setLoading(true); setError(null);
     try {
       const params = new URLSearchParams({ page: String(p), page_size: "20" });
-      if (filters.verdict) params.set("verdict", filters.verdict);
-      if (filters.scenario) params.set("scenario", filters.scenario);
+      if (f.verdict) params.set("verdict", f.verdict);
+      if (f.scenario) params.set("scenario", f.scenario);
       const r = await fetch(`${API_BASE}/v1/admin/calls?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setData(await r.json());
@@ -42,6 +43,8 @@ export function CallsListPage() {
 
   function resetFilters() {
     setFilters({ verdict: "", scenario: "" });
+    setPage(1);
+    load(1, { verdict: "", scenario: "" });
   }
 
   const filtersActive = filters.verdict !== "" || filters.scenario !== "";

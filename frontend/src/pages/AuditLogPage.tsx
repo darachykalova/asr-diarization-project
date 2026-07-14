@@ -39,14 +39,17 @@ export function AuditLogPage() {
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  async function fetchLog(p: number = page) {
+  async function fetchLog(p: number = page, overrides?: { userId?: string; dateFrom?: string; dateTo?: string }) {
+    const uid = overrides?.userId ?? userId;
+    const dFrom = overrides?.dateFrom ?? dateFrom;
+    const dTo = overrides?.dateTo ?? dateTo;
     setLoading(true); setError(null);
     try {
       const params = new URLSearchParams();
       params.set("page", String(p)); params.set("page_size", "50");
-      if (userId.trim()) params.set("user_id", userId.trim());
-      if (dateFrom) params.set("date_from", new Date(dateFrom).toISOString());
-      if (dateTo) params.set("date_to", new Date(dateTo).toISOString());
+      if (uid.trim()) params.set("user_id", uid.trim());
+      if (dFrom) params.set("date_from", new Date(dFrom).toISOString());
+      if (dTo) params.set("date_to", new Date(dTo).toISOString());
 
       const resp = await fetch(`${API_BASE}/v1/admin/audit-log?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -59,6 +62,8 @@ export function AuditLogPage() {
 
   function resetFilters() {
     setUserId(""); setDateFrom(""); setDateTo("");
+    setPage(1);
+    fetchLog(1, { userId: "", dateFrom: "", dateTo: "" });
   }
 
   const filtersActive = userId !== "" || dateFrom !== "" || dateTo !== "";
