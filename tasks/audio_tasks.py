@@ -1,7 +1,7 @@
 import logging
 
 from celery import chain as celery_chain
-from celery.signals import worker_process_init
+from celery.signals import worker_process_init, worker_ready
 from celery_app.app import celery_app
 from database import crud
 from database.session import SessionLocal
@@ -58,6 +58,24 @@ def build_pipeline_chain(
 def on_worker_process_init(**kwargs):
     import os
     logger.info("Prefork worker process PID=%s ready", os.getpid())
+
+
+@worker_ready.connect
+def on_worker_ready(**kwargs):
+    """Once per worker start (not per prefork child): requeue jobs orphaned
+    by a previous worker/broker crash. See tasks/recovery.py."""
+    from tasks.recovery import requeue_stuck_jobs
+
+    db = SessionLocal()
+    try:
+        requeued = requeue_stuck_jobs(db)
+        if requeued:
+            logger.warning("startup self-heal: requeued %d stuck job(s): %s",
+                           len(requeued), requeued)
+    except Exception:
+        logger.exception("startup self-heal failed — worker starting anyway")
+    finally:
+        db.close()
 
 
 @celery_app.task(name="dead_letter_task", queue="dead_letter")
