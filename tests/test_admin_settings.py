@@ -2,6 +2,7 @@
 from datetime import datetime
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from api.auth_users import get_current_user
@@ -13,15 +14,21 @@ client = TestClient(app)
 
 def _user(role: str = "super_admin") -> AdminUser:
     u = AdminUser()
-    u.id = 1; u.login = "admin"; u.role = role
-    u.is_blocked = False; u.created_at = datetime(2026, 7, 1)
+    u.id = 1
+    u.login = "admin"
+    u.role = role
+    u.is_blocked = False
+    u.created_at = datetime(2026, 7, 1)
     return u
 
 
 def _setting(key: str, value: str, vtype: str = "string") -> PlatformSetting:
     s = PlatformSetting()
-    s.key = key; s.value = value; s.value_type = vtype
-    s.updated_at = datetime(2026, 7, 1); s.updated_by = None
+    s.key = key
+    s.value = value
+    s.value_type = vtype
+    s.updated_at = datetime(2026, 7, 1)
+    s.updated_by = None
     return s
 
 
@@ -149,6 +156,7 @@ def test_put_settings_passes_updated_by():
 # Новые настройки и функция очистки журнала
 # ---------------------------------------------------------------------------
 
+@pytest.mark.requires_db
 def test_seed_removes_obsolete_keys():
     """chunk_threshold_sec и default_rate_limit должны удаляться при сиде."""
     from database.crud import seed_default_settings, _OBSOLETE_KEYS
@@ -172,6 +180,7 @@ def test_seed_removes_obsolete_keys():
         db.close()
 
 
+@pytest.mark.requires_db
 def test_seed_adds_new_settings():
     """После seed_default_settings новые ключи должны существовать."""
     from database.crud import seed_default_settings
@@ -191,6 +200,7 @@ def test_seed_adds_new_settings():
         db.close()
 
 
+@pytest.mark.requires_db
 def test_cleanup_old_audit_logs_deletes_old_entries():
     """cleanup_old_audit_logs удаляет записи старше retention_days."""
     from datetime import datetime, timedelta

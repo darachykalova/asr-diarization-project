@@ -1,6 +1,7 @@
 [tool.pytest.ini_options]
 markers = [
     "requires_torch: tests that need real torch/numpy/speechbrain installed",
+    "requires_db: tests that need a real Postgres connection (not available in CI)",
 ]
 
 [tool.ruff]

@@ -14,5 +14,7 @@ python-multipart==0.0.32
 PyYAML==6.0.3
 aiofiles==24.1.0
 loguru==0.5.3
+bcrypt==4.3.0
+PyJWT==2.10.1
 pytest
 pytest-asyncio

@@ -12,10 +12,12 @@ class FakeRec:
         is_final, _ = self._script[self._i]
         return is_final
     def Result(self):
-        _, text = self._script[self._i]; self._i += 1
+        _, text = self._script[self._i]
+        self._i += 1
         return json.dumps({"text": text})
     def PartialResult(self):
-        _, text = self._script[self._i]; self._i += 1
+        _, text = self._script[self._i]
+        self._i += 1
         return json.dumps({"partial": text})
     def FinalResult(self):
         return json.dumps({"text": "хвост"})

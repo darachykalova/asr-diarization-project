@@ -67,4 +67,4 @@ jobs:
         run: pip install -r requirements-ci.txt
 
       - name: Run tests
-        run: pytest tests/ -v -m "not requires_torch"
+        run: pytest tests/ -v -m "not requires_torch and not requires_db"

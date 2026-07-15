@@ -13,8 +13,11 @@ client = TestClient(app)
 
 def _user(role: str = "super_admin") -> AdminUser:
     u = AdminUser()
-    u.id = 1; u.login = "admin"; u.role = role
-    u.is_blocked = False; u.created_at = datetime(2026, 7, 1)
+    u.id = 1
+    u.login = "admin"
+    u.role = role
+    u.is_blocked = False
+    u.created_at = datetime(2026, 7, 1)
     return u
 
 

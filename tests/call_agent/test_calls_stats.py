@@ -1,9 +1,13 @@
 """Тест статистики звонков (нужен запущенный postgres)."""
 from datetime import datetime, timedelta
 
+import pytest
+
 from database import crud
 from database.models import Call
 from database.session import SessionLocal
+
+pytestmark = pytest.mark.requires_db
 
 
 def test_call_verdict_stats_counts_by_verdict():

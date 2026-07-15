@@ -8,11 +8,14 @@
 import uuid
 from datetime import datetime
 
+import pytest
 from sqlalchemy import text
 
 from api.routes.transcripts import _delete_transcript_everywhere
 from database import crud
 from database.session import SessionLocal
+
+pytestmark = pytest.mark.requires_db
 
 
 def _insert_job_without_transcript(db, job_id: str, status: str = "processing") -> None:

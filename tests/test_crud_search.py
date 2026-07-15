@@ -2,10 +2,13 @@
 import uuid
 from datetime import datetime
 
+import pytest
 from sqlalchemy import text
 
 from database import crud
 from database.session import SessionLocal
+
+pytestmark = pytest.mark.requires_db
 
 
 def _insert_transcript(db, job_id: str, full_text: str) -> None:

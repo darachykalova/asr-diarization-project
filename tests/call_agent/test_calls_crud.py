@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+import pytest
+
 from database.database import Base
 from database.models import Call, CallEvent
 from database import crud
@@ -10,6 +12,7 @@ def test_call_models_registered():
     assert "call_events" in Base.metadata.tables
 
 
+@pytest.mark.requires_db
 def test_create_and_finalize_call():
     from database.session import SessionLocal
     db = SessionLocal()
@@ -33,6 +36,7 @@ def test_create_and_finalize_call():
         db.close()
 
 
+@pytest.mark.requires_db
 def test_list_calls_filters_by_verdict():
     from database.session import SessionLocal
     db = SessionLocal()

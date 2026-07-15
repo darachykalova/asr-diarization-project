@@ -1,4 +1,6 @@
-import os, wave
+import os
+import wave
+
 from call_agent.recorder import CallRecorder
 
 
@@ -19,13 +21,18 @@ def test_publish_uploads_and_creates_job(tmp_path):
     rec.close()
 
     uploaded = {}
+
     class FakeMinio:
         def upload_file(self, local_path, object_key, content_type=None):
-            uploaded["key"] = object_key; return object_key
+            uploaded["key"] = object_key
+            return object_key
     created = {}
+
     class FakeDB: ...
+
     def fake_create_job(db, job_id, status, audio_key, params):
-        created.update(job_id=job_id, audio_key=audio_key); return None
+        created.update(job_id=job_id, audio_key=audio_key)
+        return None
 
     import call_agent.recorder as rmod
     orig = rmod.crud.create_job

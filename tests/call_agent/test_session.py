@@ -1,4 +1,5 @@
-import os, json
+import os
+import json
 import concurrent.futures
 import call_agent.config as cfg
 from call_agent.scam_detector import load_scenarios, ScamDetector
@@ -15,10 +16,17 @@ class FakeTTS:
 
 
 class ScriptRec:
-    def __init__(self, finals): self._finals = finals; self._i = 0
+    def __init__(self, finals):
+        self._finals = finals
+        self._i = 0
+
     def AcceptWaveform(self, data): return True
+
     def Result(self):
-        t = self._finals[self._i]; self._i += 1; return json.dumps({"text": t})
+        t = self._finals[self._i]
+        self._i += 1
+        return json.dumps({"text": t})
+
     def PartialResult(self): return json.dumps({"partial": ""})
     def FinalResult(self): return json.dumps({"text": ""})
 

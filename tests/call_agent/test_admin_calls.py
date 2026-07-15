@@ -8,8 +8,13 @@ from database.models import AdminUser
 client = TestClient(app)
 
 def _user(role="moderator"):
-    u = AdminUser(); u.id = 1; u.login = "m"; u.role = role
-    u.is_blocked = False; u.created_at = datetime(2026, 7, 1); return u
+    u = AdminUser()
+    u.id = 1
+    u.login = "m"
+    u.role = role
+    u.is_blocked = False
+    u.created_at = datetime(2026, 7, 1)
+    return u
 
 def _page(items):
     return {"items": items, "page": 1, "page_size": 20, "total": len(items), "pages": 1}
@@ -27,7 +32,10 @@ def test_list_calls_returns_page():
 
 def test_list_calls_passes_verdict_filter():
     captured = {}
-    def fake(db, **kw): captured.update(kw); return _page([])
+
+    def fake(db, **kw):
+        captured.update(kw)
+        return _page([])
     app.dependency_overrides[get_current_user] = lambda: _user()
     with patch("api.routes.admin_calls.crud.list_calls", side_effect=fake):
         r = client.get("/v1/admin/calls?verdict=scam")

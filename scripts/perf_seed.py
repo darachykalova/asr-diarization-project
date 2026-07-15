@@ -47,7 +47,6 @@ def seed(db, count: int) -> None:
 
     while inserted < count:
         batch_size = min(_BATCH, count - inserted)
-        now_days_ago = random.uniform(0, 365)
 
         jobs_data = []
         transcripts_data = []
