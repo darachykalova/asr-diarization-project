@@ -11,9 +11,16 @@ docker compose build api worker && docker compose up -d api worker
 # call-agent builds FROM asr-app: rebuild api (asr-app) first, then call-agent
 docker compose build api && docker compose build call-agent && docker compose up -d call-agent
 
-# Tests (no containers required)
-python -m pytest tests/
+# Tests — what CI actually runs (no containers, ML stack mocked in tests/conftest.py)
+python -m pytest tests/ -m "not requires_torch and not requires_db"
 python -m pytest tests/test_api.py::test_health_check   # single test
+
+# Tests needing real Postgres (marked requires_db, e.g. test_crud_search.py, test_job_recovery.py)
+# require `docker compose up -d postgres` first and DATABASE_URL pointing at it
+python -m pytest tests/ -m requires_db
+
+# Lint
+ruff check .
 
 # First-time setup
 docker compose build --build-arg HF_TOKEN=hf_xxx
@@ -50,6 +57,8 @@ normalize → asr → diarize → merge_align → persist → identify_speakers 
 **Chunking + auto model selection** — `asr_task` calls `chunking_service.split_audio()` for audio >6 min. Splits at VAD silence boundaries (pyannote `_segmentation`, already cached) with energy fallback. Each chunk gets its own SNR → Whisper model (tiny/base/large-v2). Diarization always runs on the full file.
 
 **Model cache** — `services/model_cache.py` stores all ML models in module-level globals per worker process (load once, reuse across jobs). Startup refuses if any of the 5 required models are missing locally (`services/model_registry.py`).
+
+**Worker self-healing** — `tasks/recovery.py:requeue_stuck_jobs()` runs once per worker start (`worker_ready` signal in `tasks/audio_tasks.py`, not per prefork child). It finds jobs stuck in `processing`/`queued` past `STUCK_JOB_MAX_AGE_HOURS` (default 2h) — orphaned when a worker or Redis died mid-job, since `task_acks_late` doesn't help if the broker itself is lost — and re-submits the pipeline chain for them (safe because `persist_task` deletes the old transcript before writing, so re-running is idempotent). Jobs with no `audio_key` can't be requeued and are marked `failed` instead.
 
 **DB layer** — all ops in `database/crud.py`. Celery task functions take `db: Session` (caller manages). Transcript query functions (used by API routes) manage `SessionLocal()` internally. `database/repository.py` was deleted.
 

@@ -16,10 +16,13 @@ hybrid). Runs fully containerized with Docker Compose, behind nginx with TLS.
 | **Overlap detection** | flags segments where speakers talk over each other |
 | **Search** | keyword, semantic (sentence-transformers), and hybrid search over all transcripts or a single job |
 | **Export** | transcript export to TXT, SRT, VTT |
-| **Async processing** | Celery + Redis, prefork workers, retry policy + dead-letter queue |
+| **Async processing** | Celery + Redis, prefork workers, retry policy + dead-letter queue, self-healing requeue of jobs orphaned by a worker/broker crash |
 | **Storage** | PostgreSQL (metadata), MinIO (audio + ML models), Qdrant (text + voice vectors) |
 | **Security** | API-key auth with scopes (read/write/admin), per-key rate limiting, TLS via nginx |
 | **Ops** | `/healthz`, `/readyz`, Prometheus `/metrics`, JSON structured logs, webhook notifications, scheduled backups |
+| **Admin console** | React + Vite web UI (own JWT auth) for browsing/searching audio and transcripts, managing speakers, users and platform settings, and an audit log |
+| **Anti-scam call agent** | Real-time WebSocket voice agent (`call_agent/`) that streams a call through ASR (Vosk), scenario + LLM-based scam detection, and TTS (Silero) replies; records every call through the same processing pipeline |
+| **AI assistant integration** | MCP server exposing transcript search and call statistics as tools for Claude Code / other MCP clients |
 
 ---
 
@@ -56,6 +59,17 @@ hybrid). Runs fully containerized with Docker Compose, behind nginx with TLS.
                          │ Qdrant  │  transcript + voice vectors
                          └─────────┘
 ```
+
+The diagram above is the core ASR pipeline. Three more services sit alongside it and share
+its storage:
+
+- **`frontend`** — the admin console (React + Vite, served by its own nginx container),
+  talking to the same FastAPI `api` over `/v1/admin/*` routes.
+- **`call-agent`** — a separate FastAPI/WebSocket service (own image, built `FROM asr-app`)
+  that runs live anti-scam voice calls and hands finished recordings to the same Celery
+  pipeline chain for transcription.
+- **`mcp-server`** — a FastMCP server (stdio or HTTP) that reads directly from PostgreSQL
+  to expose transcript search and call analytics as tools for AI assistants.
 
 ---
 
@@ -406,11 +420,86 @@ re-reads dashboards every 30 s.
 
 ---
 
+## Admin console
+
+A React + Vite web UI for day-to-day operation, separate from the `/v1/*` API-key auth
+(its own JWT layer in `api/auth_users.py`, routes under `/v1/admin/*`).
+
+```bash
+cd frontend && npm install && npm run dev   # dev server, http://localhost:5173
+
+# production build, served by its own nginx container
+docker compose build frontend && docker compose up -d frontend   # http://localhost:${FRONTEND_PORT:-5173}
+```
+
+First-time setup — create the first super-admin user:
+
+```bash
+docker compose exec api python scripts/bootstrap_admin.py --login admin --role super_admin
+```
+
+Two roles: `moderator` (audio + transcripts) and `super_admin` (+ users, audit log,
+platform settings). Pages: audio list/detail, upload, calls, analytics, users, audit log,
+settings, and a call simulator that talks to the call agent over WebSocket.
+
+---
+
+## Anti-scam call agent
+
+`call_agent/` is a separate service (own image `asr-call-agent`, built `FROM asr-app`,
+port 8100) that runs a live, real-time anti-scam voice call over a single WebSocket
+endpoint (`/ws/call`): the browser streams PCM16@16kHz audio in, the agent streams back
+JSON messages (`agent_text` / `hangup`) plus synthesized speech.
+
+Pipeline inside one call: streaming ASR (Vosk) → scam detection (YAML scenarios in
+`call_agent/scenarios/`, e.g. fake bank / gas service / police, plus an optional
+semantic check via a local Ollama LLM) → dialog engine → TTS (Silero, WAV-cached).
+Every call is recorded and handed to the same Celery pipeline chain used for uploaded
+audio, so finished calls show up as regular transcripts.
+
+```bash
+# call-agent builds FROM asr-app: rebuild api first, then call-agent
+docker compose build api && docker compose build call-agent && docker compose up -d call-agent
+
+docker compose exec call-agent python scripts/verify_call_agent_models.py
+docker compose exec ollama ollama pull qwen2.5:3b   # scam semantic-check model
+```
+
+Models (Vosk, Silero) are not baked into the image — they live in the `models_cache`
+volume and must be downloaded once; the container refuses to start with instructions if
+they're missing. Optional: set `N8N_CALL_ALERT_WEBHOOK_URL` to get a webhook (e.g. to a
+local n8n → Telegram workflow, see `n8n/workflows/call-alert-telegram.json`) after every
+call with `{call_id, verdict}`.
+
+---
+
+## MCP server
+
+`mcp_server/server.py` (FastMCP) exposes transcript search and call analytics as tools
+for AI assistants (e.g. Claude Code), reading directly from PostgreSQL:
+`search_transcripts`, `get_transcript`, `list_recent_calls`, `get_call`, `call_stats`,
+and more analytics helpers.
+
+Two transports:
+
+- **stdio** (local, single user) — `pip install -r mcp_server/requirements.txt` on the
+  host, then Claude Code picks it up via `.mcp.json` in the repo root.
+- **HTTP** (shared, team use) — the `mcp-server` compose service, port 8200. Requires
+  `MCP_AUTH_TOKEN` in `.env` (the container refuses to start without it):
+
+  ```bash
+  docker compose build api && docker compose build mcp-server
+  claude mcp add --transport http asr-remote http://<host>:8200/mcp \
+    --header "Authorization: Bearer <token>"
+  ```
+
+---
+
 ## Testing & CI
 
 ```bash
 # Run the unit tests (no containers required)
-python -m pytest tests/
+python -m pytest tests/ -m "not requires_torch and not requires_db"
 
 # A single test
 python -m pytest tests/test_api.py::test_health_check
@@ -418,10 +507,12 @@ python -m pytest tests/test_api.py::test_health_check
 
 Tests mock the heavy ML stack (torch, pyannote, speechbrain) via
 `tests/conftest.py`, so they run fast and without GPU. Tests that need the real
-ML libraries are marked `@pytest.mark.requires_torch` and skipped in CI:
+ML libraries are marked `@pytest.mark.requires_torch`, and tests that need a real
+Postgres connection are marked `@pytest.mark.requires_db` — both are excluded in CI:
 
 ```bash
-pytest tests/ -m "not requires_torch"   # what CI runs
+pytest tests/ -m "not requires_torch and not requires_db"   # what CI runs
+pytest tests/ -m requires_db                                # needs docker compose up -d postgres
 ```
 
 **GitHub Actions** (`.github/workflows/ci.yml`) runs on every push / PR to
@@ -487,6 +578,25 @@ scripts/
 tests/                      # pytest unit tests (ML stack mocked in conftest.py)
 .github/workflows/ci.yml    # lint + tests on every push / PR
 
+frontend/                   # admin console (React + Vite), own JWT auth layer
+├── src/pages/               # audio list/detail, upload, calls, analytics,
+│                            # users, audit log, settings, call simulator
+└── src/auth/                 # api/auth_users.py-backed login flow
+
+call_agent/                 # anti-scam voice agent (separate image, port 8100)
+├── main.py                  # /ws/call WebSocket endpoint
+├── streaming_asr.py          # Vosk
+├── scam_detector.py          # YAML scenario matching + Ollama semantic check
+├── scenarios/                 # fake_bank.yaml, gas_service.yaml, police.yaml
+├── dialog_engine.py / persona/ # scripted replies
+├── tts_service.py             # Silero, WAV cache
+└── recorder.py                # call recording -> MinIO -> pipeline chain
+
+mcp_server/                 # FastMCP server (stdio or HTTP) for AI assistants
+└── server.py                 # search_transcripts, get_transcript, call_stats, ...
+
+n8n/workflows/               # call-alert-telegram.json (imported manually via n8n UI)
+
 nginx/                      # TLS reverse proxy config + certs (certs git-ignored)
 monitoring/
 ├── prometheus.yml          # scrape config (api:8000/metrics)
@@ -526,6 +636,7 @@ async upload, multilingual ASR with word timestamps, diarization, overlap flags,
 cross-recording speaker identification, partial results, voice registry, GDPR delete,
 webhooks, keyword/semantic/hybrid search, SRT/VTT/TXT export, API-key auth with scopes
 and rate limiting, health/readiness probes, Prometheus metrics, structured JSON logs,
-scheduled backups, and monitoring.
+scheduled backups, monitoring, worker self-healing, an admin console, a real-time
+anti-scam call agent, and an MCP server for AI-assistant integration.
 
 **Not yet implemented:** stereo-telephony "channel = speaker" mode (FR-8); GPU worker image.
