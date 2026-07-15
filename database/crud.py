@@ -468,20 +468,31 @@ def get_audio_key_by_job_id(job_id: str) -> str | None:
         db.close()
 
 
+def job_exists(job_id: str) -> bool:
+    db = SessionLocal()
+    try:
+        return db.query(Job.id).filter(Job.id == job_id.strip()).first() is not None
+    finally:
+        db.close()
+
+
 def delete_transcript_by_job_id(job_id: str) -> bool:
     db = SessionLocal()
     try:
         clean = job_id.strip()
-        transcript = db.query(Transcript).filter(Transcript.job_id == clean).first()
-        if transcript is None:
+        job = db.query(Job).filter(Job.id == clean).first()
+        if job is None:
             return False
+        transcript = db.query(Transcript).filter(Transcript.job_id == clean).first()
+        if transcript is not None:
+            db.delete(transcript)
         recording = db.query(Recording).filter(Recording.job_id == clean).first()
         if recording is not None:
             db.delete(recording)
-        db.delete(transcript)
-        job = db.query(Job).filter(Job.id == clean).first()
-        if job is not None:
-            db.delete(job)
+        # Call.job_id -> jobs.id (FK): звонок анти-скам агента должен пережить
+        # удаление своего аудио/транскрипта, чтобы не ломать историю/статистику.
+        db.query(Call).filter(Call.job_id == clean).update({Call.job_id: None})
+        db.delete(job)
         db.commit()
         return True
     except Exception:

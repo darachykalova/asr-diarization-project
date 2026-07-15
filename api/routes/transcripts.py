@@ -23,7 +23,7 @@ def _get_transcript_from_postgres(job_id: str) -> dict | None:
 def _delete_transcript_everywhere(job_id: str) -> dict:
     clean_job_id = job_id.strip()
 
-    if crud.get_transcript_by_job_id(job_id=clean_job_id) is None:
+    if not crud.job_exists(job_id=clean_job_id):
         return {"deleted": False, "reason": "not_found"}
 
     audio_key = crud.get_audio_key_by_job_id(job_id=clean_job_id)
