@@ -25,7 +25,13 @@ export function LoginPage() {
 
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
-        setError((data as { detail?: string }).detail ?? "Неверный логин или пароль");
+        const detail = (data as { detail?: string }).detail;
+        // Бэкенд отвечает по-английски ("Invalid credentials") — показываем русский текст
+        setError(
+          !detail || detail === "Invalid credentials"
+            ? "Неверный логин или пароль"
+            : detail
+        );
         return;
       }
 
@@ -47,52 +53,63 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-sm">
+      <div className="bg-white p-8 rounded-lg shadow w-full max-w-sm">
         <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">
           Вход в систему
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 mb-1">
               Логин
             </label>
             <input
+              id="login-username"
               type="text"
               value={login}
               onChange={(e) => setLogin(e.target.value)}
               required
               autoComplete="username"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                error ? "border-red-300" : "border-gray-300"
+              }`}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
               Пароль
             </label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                error ? "border-red-300" : "border-gray-300"
+              }`}
             />
           </div>
 
           {error && (
-            <p className="text-red-600 text-sm">{error}</p>
+            <p role="alert" aria-live="polite" className="text-red-600 text-sm">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading}
+            aria-busy={loading}
             className="w-full bg-blue-600 text-white py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
           >
             {loading ? "Вход…" : "Войти"}
           </button>
         </form>
+
+        <p className="mt-6 text-xs text-gray-500 text-center">
+          Не получается войти? Обратитесь к администратору платформы — он может сбросить пароль.
+        </p>
       </div>
     </div>
   );
