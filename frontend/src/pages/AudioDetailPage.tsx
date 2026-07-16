@@ -87,7 +87,7 @@ export function AudioDetailPage() {
         return r.json();
       })
       .then(setItem)
-      .catch((e) => setItemError(String(e)))
+      .catch((e) => setItemError(e instanceof Error ? e.message : String(e)))
       .finally(() => setInitialLoading(false));
   }, [jobId, token]);
 
@@ -106,7 +106,7 @@ export function AudioDetailPage() {
       }
       setRevealed(await resp.json());
     } catch (e) {
-      setRevealError(String(e));
+      setRevealError(e instanceof Error ? e.message : String(e));
     } finally {
       setRevealing(false);
     }
@@ -126,7 +126,7 @@ export function AudioDetailPage() {
       }
       navigate("/audio");
     } catch (e) {
-      setItemError(String(e));
+      setItemError(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -147,7 +147,7 @@ export function AudioDetailPage() {
       ) : (
         <FadeIn>
           {itemError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4">
+            <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">
               {itemError}
             </div>
           )}
@@ -158,7 +158,7 @@ export function AudioDetailPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h1 className="text-xl font-bold text-gray-800">{item.title}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{item.job_id}</p>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">{item.job_id}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`mt-1 inline-block px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -218,7 +218,7 @@ export function AudioDetailPage() {
             )}
 
             {revealError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-3">
+              <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-3">
                 {revealError}
               </div>
             )}
