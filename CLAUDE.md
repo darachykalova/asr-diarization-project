@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Design Context
+
+For `frontend/` UI/UX work, `PRODUCT.md` and `DESIGN.md` at the repo root capture the admin console's product register, users, brand personality, and visual system (colors, typography, components) — written 2026-07-16 via the `impeccable` skill. Read them before making design decisions; every `impeccable` command reads them automatically.
+
 ## Commands
 
 ```bash

@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-16T11:26:20Z",
+  "title": "Design System: ASR Admin Console",
+  "extensions": {
+    "colorMeta": {
+      "working-blue": {
+        "role": "primary",
+        "displayName": "Working Blue",
+        "canonical": "#2563eb",
+        "tonalRamp": ["#0f2557", "#173d8c", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
+      },
+      "alert-red": {
+        "role": "status-danger",
+        "displayName": "Alert Red",
+        "canonical": "#dc2626",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#fca5a5", "#fef2f2"]
+      },
+      "clear-green": {
+        "role": "status-success",
+        "displayName": "Clear Green",
+        "canonical": "#16a34a",
+        "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#86efac", "#f0fdf4"]
+      },
+      "caution-amber": {
+        "role": "status-warning",
+        "displayName": "Caution Amber",
+        "canonical": "#eab308",
+        "tonalRamp": ["#422006", "#713f12", "#854d0e", "#a16207", "#ca8a04", "#eab308", "#fde047", "#fef9c3"]
+      },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#1f2937" },
+      "body-text": { "role": "neutral", "displayName": "Body Text", "canonical": "#4b5563" },
+      "muted-text": { "role": "neutral", "displayName": "Muted Text", "canonical": "#6b7280" },
+      "faint-text": { "role": "neutral", "displayName": "Faint Text", "canonical": "#9ca3af" },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#ffffff" },
+      "canvas": { "role": "neutral", "displayName": "Canvas", "canonical": "#f9fafb" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Page Title", "purpose": "One per page, top-left. Never exceeds 24px/700 — see The No-Display-Font Rule." },
+      "headline": { "displayName": "Section Title", "purpose": "Card and modal headings within a page." },
+      "body": { "displayName": "Body", "purpose": "Table cells, form labels, paragraph copy, button labels — the workhorse size." },
+      "label": { "displayName": "Label", "purpose": "Status badges, table meta, helper text." }
+    },
+    "shadows": [
+      { "name": "card", "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)", "purpose": "Default resting state for every card, table container, filter panel." },
+      { "name": "raised", "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)", "purpose": "Floating elements: nav dropdown, toasts." },
+      { "name": "modal", "value": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)", "purpose": "Confirm dialog only." }
+    ],
+    "motion": [
+      { "name": "ease-out-strong", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Standard entrance/exit curve for modals, toasts, dropdowns, mount-fades — established 2026-07-16 across the app, replacing the weaker Tailwind built-in ease-out." },
+      { "name": "duration-press", "value": "100ms", "purpose": "Button/row press-feedback scale (active:scale-[0.97])." },
+      { "name": "duration-popover", "value": "150ms", "purpose": "Dropdowns, tooltips." },
+      { "name": "duration-modal", "value": "200ms", "purpose": "Modals, toasts, mount-fades." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main call-to-action: submit, save, confirm.",
+      "html": "<button class=\"ds-btn-primary\">Показать</button>",
+      "css": ".ds-btn-primary { background: #2563eb; color: #ffffff; padding: 8px 20px; border-radius: 6px; font-size: 0.875rem; font-weight: 500; border: none; transition: background-color 150ms, transform 100ms; } .ds-btn-primary:hover { background: #1d4ed8; } .ds-btn-primary:active { transform: scale(0.97); } .ds-btn-primary:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Ghost Button",
+      "kind": "button",
+      "refersTo": "button-danger-ghost",
+      "description": "Destructive action trigger (delete), always paired with a confirm dialog before the action fires.",
+      "html": "<button class=\"ds-btn-danger\">Удалить</button>",
+      "css": ".ds-btn-danger { background: transparent; color: #dc2626; padding: 6px 12px; border: 1px solid #fecaca; border-radius: 6px; font-size: 0.875rem; transition: background-color 150ms, transform 100ms; } .ds-btn-danger:hover { background: #fef2f2; } .ds-btn-danger:active { transform: scale(0.97); }"
+    },
+    {
+      "name": "Success Badge",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Status label for completed / clean items.",
+      "html": "<span class=\"ds-badge-success\">Готово</span>",
+      "css": ".ds-badge-success { background: #f0fdf4; color: #15803d; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }"
+    },
+    {
+      "name": "Danger Badge",
+      "kind": "chip",
+      "refersTo": "badge-error",
+      "description": "Status label for flagged / failed / scam items.",
+      "html": "<span class=\"ds-badge-error\">🔴 Мошенник</span>",
+      "css": ".ds-badge-error { background: #fef2f2; color: #b91c1c; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Standard text/search field used across filter bars and forms.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Слово или фраза…\" />",
+      "css": ".ds-input { background: #ffffff; color: #1f2937; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; transition: border-color 150ms, box-shadow 150ms; } .ds-input:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.5); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Default content container: tables, filter panels, detail sections.",
+      "html": "<div class=\"ds-card\">Card content</div>",
+      "css": ".ds-card { background: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); padding: 20px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Duty Desk",
+    "overview": "This is the screen a moderator has open all shift: a duty desk, not a storefront. Every surface exists to get someone from \"what happened\" to \"what do I do about it\" as fast as possible — flagged calls, raw transcripts, speaker identities, platform settings, an audit trail. Nothing here is trying to be liked; it's trying to be trusted and fast. The system explicitly rejects the playful, bright SaaS-marketing look: no gradient heroes, no bouncy celebratory motion, no oversized display type standing in for a value proposition. The product itself exists to catch manipulation and urgency in scam calls — its own interface refuses to use those same tricks on the people running it. Density is currently light-to-medium: generous white space around card-based sections, one soft shadow tier, a single blue accent reserved for actions.",
+    "keyCharacteristics": [
+      "One primary accent (blue), reserved for actions and links — never used decoratively.",
+      "Three status colors (red / green / amber) carry real state, not mood.",
+      "Flat, single-shadow cards throughout; no elevation hierarchy yet.",
+      "System sans-serif everywhere; no display or brand typeface.",
+      "Dense information (tables, filters, timestamps) over illustration or imagery."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Working Blue is the only color used to mean \"you can act here.\" Never add a second decorative accent color.", "section": "colors" },
+      { "name": "The Status-Means-Something Rule", "body": "Red, green, and amber never appear as decoration — only as danger/success/partial state.", "section": "colors" },
+      { "name": "The No-Display-Font Rule", "body": "This system has no hero typography. A page title at 24px/700 is the largest text anywhere.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. A shadow only separates a floating element (modal, dropdown, toast) from the page beneath it.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Working Blue as the only action-accent color.",
+      "Do use the -soft tint + -deep/-hover text pairing for any new status badge.",
+      "Do respect prefers-reduced-motion on every new animation.",
+      "Do anchor any new popover/dropdown/tooltip to its trigger with a scale+fade entrance.",
+      "Do use the system sans stack and the four-step type scale for any new screen."
+    ],
+    "donts": [
+      "Don't add a second decorative accent color alongside Working Blue.",
+      "Don't use border-left/border-right as a colored accent stripe.",
+      "Don't use gradient text or a gradient hero background.",
+      "Don't introduce bouncy/elastic easing or celebratory motion.",
+      "Don't give any page a display-sized headline above 24px/700.",
+      "Don't stack a shadow and a border on the same card."
+    ]
+  }
+}
