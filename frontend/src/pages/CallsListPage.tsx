@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { FadeIn } from "../components/FadeIn";
@@ -17,12 +17,24 @@ const VERDICT = { scam: "🔴 Мошенник", not_scam: "🟢 Чисто", un
 
 export function CallsListPage() {
   const { token } = useAuth();
-  const [filters, setFilters] = useState({ verdict: "", scenario: "" });
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState(() => ({
+    verdict: searchParams.get("verdict") ?? "",
+    scenario: searchParams.get("scenario") ?? "",
+  }));
+  const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1);
   const [data, setData] = useState<CallsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
+
+  function syncUrl(p: number, f: { verdict: string; scenario: string }) {
+    const params = new URLSearchParams();
+    if (f.verdict) params.set("verdict", f.verdict);
+    if (f.scenario) params.set("scenario", f.scenario);
+    if (p !== 1) params.set("page", String(p));
+    setSearchParams(params, { replace: true });
+  }
 
   async function load(p = 1, overrides?: { verdict?: string; scenario?: string }) {
     const f = { ...filters, ...overrides };
@@ -35,7 +47,7 @@ export function CallsListPage() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setData(await r.json());
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
       setInitialLoading(false);
@@ -45,35 +57,40 @@ export function CallsListPage() {
   function resetFilters() {
     setFilters({ verdict: "", scenario: "" });
     setPage(1);
+    syncUrl(1, { verdict: "", scenario: "" });
     load(1, { verdict: "", scenario: "" });
   }
 
   const filtersActive = filters.verdict !== "" || filters.scenario !== "";
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(page); }, []);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Звонки</h1>
       <div className="bg-white rounded-lg shadow p-4 mb-6 flex gap-3 items-end">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Вердикт</label>
-          <select value={filters.verdict} onChange={e => setFilters(f => ({ ...f, verdict: e.target.value }))}
-            className="border border-gray-300 rounded px-3 py-2 text-sm">
+          <label htmlFor="calls-verdict" className="block text-xs text-gray-500 mb-1">Вердикт</label>
+          <select id="calls-verdict" value={filters.verdict} onChange={e => setFilters(f => ({ ...f, verdict: e.target.value }))}
+            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">Все</option>
             <option value="scam">Мошенник</option>
             <option value="not_scam">Чисто</option>
             <option value="undetermined">Не определён</option>
           </select>
         </div>
-        <input
-          type="text"
-          placeholder="Сценарий"
-          value={filters.scenario}
-          onChange={(e) => setFilters(f => ({ ...f, scenario: e.target.value }))}
-          className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
-        <button onClick={() => { setPage(1); load(1); }} disabled={loading}
+        <div>
+          <label htmlFor="calls-scenario" className="block text-xs text-gray-500 mb-1">Сценарий</label>
+          <input
+            id="calls-scenario"
+            type="text"
+            placeholder="Название сценария…"
+            value={filters.scenario}
+            onChange={(e) => setFilters(f => ({ ...f, scenario: e.target.value }))}
+            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <button onClick={() => { setPage(1); syncUrl(1, filters); load(1); }} disabled={loading}
           className="bg-blue-600 text-white px-5 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100">
           {loading ? "Загрузка…" : "Показать"}
         </button>
@@ -82,7 +99,7 @@ export function CallsListPage() {
         <LoadingSpinner />
       ) : (
         <FadeIn>
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
+          {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
           {data && (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <table className="w-full text-sm">
@@ -130,13 +147,13 @@ export function CallsListPage() {
                 <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
                   <button
                     disabled={page === 1}
-                    onClick={() => { const p = page - 1; setPage(p); load(p); }}
+                    onClick={() => { const p = page - 1; setPage(p); syncUrl(p, filters); load(p); }}
                     className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
                   >Назад</button>
                   <span>Стр. {page} / {data.pages}</span>
                   <button
                     disabled={page >= data.pages}
-                    onClick={() => { const p = page + 1; setPage(p); load(p); }}
+                    onClick={() => { const p = page + 1; setPage(p); syncUrl(p, filters); load(p); }}
                     className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
                   >Вперёд</button>
                 </div>

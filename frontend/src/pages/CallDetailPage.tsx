@@ -19,27 +19,51 @@ export function CallDetailPage() {
   const { token } = useAuth();
   const [d, setD] = useState<Detail | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const r = await fetch(`${API_BASE}/v1/admin/calls/${callId}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (r.ok) setD(await r.json());
+    try {
+      const r = await fetch(`${API_BASE}/v1/admin/calls/${callId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(r.status === 404 ? "Звонок не найден" : `HTTP ${r.status}`);
+      setD(await r.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
   useEffect(() => { load(); }, [callId]);
 
   async function regen() {
     setBusy(true);
-    await fetch(`${API_BASE}/v1/admin/calls/${callId}/summary`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}` },
-    });
-    await load(); setBusy(false);
+    setError(null);
+    try {
+      const r = await fetch(`${API_BASE}/v1/admin/calls/${callId}/summary`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error(`Не удалось обновить выжимку (HTTP ${r.status})`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
+  if (error && !d) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm">{error}</div>
+      </div>
+    );
+  }
   if (!d) return <div className="p-6"><LoadingSpinner /></div>;
   const c = d.call;
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <FadeIn>
       <h1 className="text-2xl font-bold mb-4">Звонок</h1>
+      {error && (
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
+      )}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
         <div className="text-lg font-medium mb-2">
           {c.verdict === "scam" ? "🔴 Мошенник" : c.verdict === "not_scam" ? "🟢 Чисто" : "⚪ Не определён"}
