@@ -31,12 +31,16 @@ function isTokenValid(token: string): boolean {
   }
 }
 
+// Флаг для LoginPage: объяснить пользователю, почему его выбросило на вход
+export const SESSION_EXPIRED_KEY = "admin_session_expired";
+
 function loadToken(): string | null {
   const t = localStorage.getItem(TOKEN_KEY);
   if (t && !isTokenValid(t)) {
     // Истёкший токен: чистим сразу, иначе страницы молча получают 401
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    sessionStorage.setItem(SESSION_EXPIRED_KEY, "1");
     return null;
   }
   return t;
