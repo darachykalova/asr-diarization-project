@@ -2,7 +2,7 @@ export function MascotCat() {
   return (
     <div className="fixed bottom-4 right-4 z-40 pointer-events-none">
       <svg
-        className="animate-cat-nod origin-[50%_92%]"
+        className="animate-cat-nod origin-[50%_92%] motion-reduce:animate-none"
         viewBox="0 0 120 120"
         width="90"
         height="90"

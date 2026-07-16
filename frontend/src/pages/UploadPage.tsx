@@ -1,8 +1,27 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
+function DonePanel({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <div
+      className={`transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
+        mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
 
 const MODELS = [
   { value: "", label: "Авто (по качеству аудио)" },
@@ -131,25 +150,27 @@ export function UploadPage() {
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Загрузить аудио</h1>
 
       {state === "done" && jobId ? (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-          <div className="text-green-600 text-4xl mb-3">✓</div>
-          <p className="text-green-800 font-medium mb-1">Файл отправлен в обработку</p>
-          <p className="text-sm text-gray-500 mb-4">Job ID: {jobId}</p>
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={() => navigate(`/audio/${jobId}`)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-            >
-              Открыть запись
-            </button>
-            <button
-              onClick={() => { setFile(null); setJobId(null); setState("idle"); setProgress(0); }}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
-            >
-              Загрузить ещё
-            </button>
+        <DonePanel>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+            <div className="text-green-600 text-4xl mb-3">✓</div>
+            <p className="text-green-800 font-medium mb-1">Файл отправлен в обработку</p>
+            <p className="text-sm text-gray-500 mb-4">Job ID: {jobId}</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => navigate(`/audio/${jobId}`)}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              >
+                Открыть запись
+              </button>
+              <button
+                onClick={() => { setFile(null); setJobId(null); setState("idle"); setProgress(0); }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+              >
+                Загрузить ещё
+              </button>
+            </div>
           </div>
-        </div>
+        </DonePanel>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Дроп-зона */}
@@ -232,8 +253,8 @@ export function UploadPage() {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-blue-500 h-2 rounded-full transition-all"
-                  style={{ width: `${progress}%` }}
+                  className="bg-blue-500 h-2 w-full rounded-full origin-left transition-transform duration-200 ease-linear"
+                  style={{ transform: `scaleX(${progress / 100})` }}
                 />
               </div>
             </div>
@@ -249,7 +270,7 @@ export function UploadPage() {
           <button
             type="submit"
             disabled={!file || state === "uploading"}
-            className="w-full py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+            className="w-full py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
           >
             {state === "uploading" ? "Загружается..." : "Отправить на транскрипцию"}
           </button>

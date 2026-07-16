@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
+import { FadeIn } from "../components/FadeIn";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -37,6 +38,7 @@ export function CallDetailPage() {
   const c = d.call;
   return (
     <div className="p-6 max-w-3xl mx-auto">
+      <FadeIn>
       <h1 className="text-2xl font-bold mb-4">Звонок</h1>
       <div className="bg-white rounded-lg shadow p-4 mb-4">
         <div className="text-lg font-medium mb-2">
@@ -47,7 +49,7 @@ export function CallDetailPage() {
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs font-medium text-gray-500">Краткая выжимка</span>
             <button onClick={regen} disabled={busy}
-              className="text-xs text-blue-600 hover:underline disabled:opacity-50">
+              className="text-xs text-blue-600 hover:underline disabled:opacity-50 transition-opacity active:scale-[0.97] motion-reduce:active:scale-100">
               {busy ? "Генерация…" : "Обновить"}
             </button>
           </div>
@@ -72,6 +74,7 @@ export function CallDetailPage() {
           </div>
         ))}
       </div>
+      </FadeIn>
     </div>
   );
 }

@@ -66,8 +66,37 @@ const SETTING_META: Record<string, {
 
 const ALL_FORMATS = ["mp3", "wav", "ogg", "flac", "m4a", "webm", "mp4", "aac", "opus"];
 
+function SuccessBanner({ show }: { show: boolean }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (!show) { setMounted(false); return; }
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, [show]);
+
+  if (!show) return null;
+  return (
+    <div
+      className={`bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
+        mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+      }`}
+    >
+      Настройки сохранены
+    </div>
+  );
+}
+
 function Tooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!show) { setVisible(false); return; }
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, [show]);
+
   return (
     <span className="relative inline-block ml-1.5 align-middle">
       <span
@@ -76,7 +105,11 @@ function Tooltip({ text }: { text: string }) {
         onMouseLeave={() => setShow(false)}
       >?</span>
       {show && (
-        <span className="absolute left-6 top-0 z-50 w-72 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg leading-relaxed">
+        <span
+          className={`absolute left-6 top-0 z-50 w-72 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg leading-relaxed origin-top-left transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 ${
+            visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          }`}
+        >
           {text}
         </span>
       )}
@@ -326,11 +359,7 @@ export function SettingsPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
       )}
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm">
-          Настройки сохранены
-        </div>
-      )}
+      <SuccessBanner show={success} />
 
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
         {sorted.map(s => {

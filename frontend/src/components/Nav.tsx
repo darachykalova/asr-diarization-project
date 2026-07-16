@@ -8,6 +8,44 @@ interface NavItem {
   roles: Role[];
 }
 
+function NavDropdown({
+  management, currentPath, onNavigate,
+}: {
+  management: NavItem[];
+  currentPath: string;
+  onNavigate: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <div
+      className={`absolute left-0 top-full mt-2 bg-gray-800 border border-gray-700 rounded shadow-lg py-1 min-w-40 z-50 origin-top-left transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 ${
+        visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+      }`}
+    >
+      {management.map((item) => (
+        <Link
+          key={item.path}
+          to={item.path}
+          onClick={onNavigate}
+          className={`block px-4 py-2 text-sm transition-colors ${
+            currentPath.startsWith(item.path)
+              ? "text-white bg-gray-700"
+              : "text-gray-300 hover:bg-gray-700 hover:text-white"
+          }`}
+        >
+          {item.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 const PRIMARY_ITEMS: NavItem[] = [
   { path: "/upload",    label: "Загрузить",    roles: ["moderator", "super_admin"] },
   { path: "/audio",     label: "Аудиозаписи",  roles: ["moderator", "super_admin"] },
@@ -81,31 +119,21 @@ export function Nav() {
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className={`text-sm transition-colors flex items-center gap-1 ${
+              className={`text-sm flex items-center gap-1 active:scale-[0.97] transition-[color,transform] motion-reduce:active:scale-100 ${
                 managementActive
                   ? "text-white underline underline-offset-4"
                   : "text-gray-400 hover:text-gray-200"
               }`}
             >
-              Управление <span className="text-xs">▾</span>
+              Управление{" "}
+              <span className={`text-xs transition-transform duration-150 ease-out ${menuOpen ? "rotate-180" : ""}`}>▾</span>
             </button>
             {menuOpen && (
-              <div className="absolute left-0 top-full mt-2 bg-gray-800 border border-gray-700 rounded shadow-lg py-1 min-w-40 z-50">
-                {management.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMenuOpen(false)}
-                    className={`block px-4 py-2 text-sm transition-colors ${
-                      location.pathname.startsWith(item.path)
-                        ? "text-white bg-gray-700"
-                        : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
+              <NavDropdown
+                management={management}
+                currentPath={location.pathname}
+                onNavigate={() => setMenuOpen(false)}
+              />
             )}
           </div>
         )}
@@ -119,7 +147,7 @@ export function Nav() {
 
         <button
           onClick={handleLogout}
-          className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition-colors"
+          className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded active:scale-[0.97] transition-[background-color,transform] motion-reduce:active:scale-100"
         >
           Выйти
         </button>

@@ -172,7 +172,7 @@ export function UsersPage() {
             </div>
             <button
               type="submit" disabled={creating}
-              className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
             >
               {creating ? "Создаётся…" : "Создать"}
             </button>
@@ -194,7 +194,7 @@ export function UsersPage() {
                 {users.length === 0 ? (
                   <tr><td colSpan={5} className="text-center py-8 text-gray-400">Пусто</td></tr>
                 ) : users.map(u => (
-                  <tr key={u.id} className="hover:bg-gray-50">
+                  <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-medium">{u.login}</td>
                     <td className="px-4 py-3">
                       <select

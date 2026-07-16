@@ -31,7 +31,10 @@ function HBar({ value, max, label }: { value: number; max: number; label: string
     <div className="flex items-center gap-2 py-0.5">
       <span className="w-36 text-sm text-gray-700 truncate shrink-0" title={label}>{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
-        <div className="h-4 bg-blue-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        <div
+          className="h-4 w-full bg-blue-400 rounded-full origin-left transition-transform duration-200 ease-linear"
+          style={{ transform: `scaleX(${pct / 100})` }}
+        />
       </div>
       <span className="w-10 text-xs text-gray-500 text-right shrink-0">{value}</span>
     </div>

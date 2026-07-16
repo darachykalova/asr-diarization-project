@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
+import { FadeIn } from "../components/FadeIn";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -73,14 +74,14 @@ export function CallsListPage() {
           className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
         <button onClick={() => { setPage(1); load(1); }} disabled={loading}
-          className="bg-blue-600 text-white px-5 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+          className="bg-blue-600 text-white px-5 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100">
           {loading ? "Загрузка…" : "Показать"}
         </button>
       </div>
       {initialLoading ? (
         <LoadingSpinner />
       ) : (
-        <>
+        <FadeIn>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
           {data && (
             <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -96,7 +97,7 @@ export function CallsListPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {data.items.map(c => (
-                    <tr key={c.call_id} className="hover:bg-gray-50">
+                    <tr key={c.call_id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <Link to={`/calls/${c.call_id}`} className="text-blue-600 hover:underline">
                           {new Date(c.started_at).toLocaleString("ru-RU")}
@@ -130,19 +131,19 @@ export function CallsListPage() {
                   <button
                     disabled={page === 1}
                     onClick={() => { const p = page - 1; setPage(p); load(p); }}
-                    className="px-3 py-1 border rounded disabled:opacity-40"
+                    className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
                   >Назад</button>
                   <span>Стр. {page} / {data.pages}</span>
                   <button
                     disabled={page >= data.pages}
                     onClick={() => { const p = page + 1; setPage(p); load(p); }}
-                    className="px-3 py-1 border rounded disabled:opacity-40"
+                    className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
                   >Вперёд</button>
                 </div>
               )}
             </div>
           )}
-        </>
+        </FadeIn>
       )}
     </div>
   );

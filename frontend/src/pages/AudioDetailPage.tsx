@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
+import { FadeIn } from "../components/FadeIn";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -144,7 +145,7 @@ export function AudioDetailPage() {
       {initialLoading ? (
         <LoadingSpinner />
       ) : (
-        <>
+        <FadeIn>
           {itemError && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4">
               {itemError}
@@ -170,7 +171,7 @@ export function AudioDetailPage() {
                   </span>
                   <button
                     onClick={() => setConfirmDeleteOpen(true)}
-                    className="px-3 py-1.5 rounded text-sm text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                    className="px-3 py-1.5 rounded text-sm text-red-600 border border-red-200 hover:bg-red-50 active:scale-[0.97] transition-[background-color,transform] motion-reduce:active:scale-100"
                   >
                     Удалить
                   </button>
@@ -203,7 +204,7 @@ export function AudioDetailPage() {
                 <button
                   onClick={handleReveal}
                   disabled={revealing || item?.status !== "done"}
-                  className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
                 >
                   {revealing ? "Загружается…" : "Развернуть"}
                 </button>
@@ -230,7 +231,7 @@ export function AudioDetailPage() {
 
             {/* Сегменты по спикерам */}
             {revealed && (
-              <>
+              <FadeIn>
                 {/* Легенда спикеров */}
                 {revealed.speakers.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-5">
@@ -264,10 +265,10 @@ export function AudioDetailPage() {
                     </div>
                   ))}
                 </div>
-              </>
+              </FadeIn>
             )}
           </div>
-        </>
+        </FadeIn>
       )}
       <ConfirmDialog
         open={confirmDeleteOpen}

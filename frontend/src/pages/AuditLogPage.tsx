@@ -96,7 +96,7 @@ export function AuditLogPage() {
             className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <button type="submit" disabled={loading}
-          className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100">
           {loading ? "Загрузка…" : "Показать"}
         </button>
       </form>
@@ -136,7 +136,7 @@ export function AuditLogPage() {
                         </td>
                       </tr>
                     ) : data.items.map(item => (
-                      <tr key={item.id} className="hover:bg-gray-50">
+                      <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-mono text-xs text-gray-600">{fmtDate(item.created_at)}</td>
                         <td className="px-4 py-3 font-medium">{item.user_login}</td>
                         <td className="px-4 py-3">
