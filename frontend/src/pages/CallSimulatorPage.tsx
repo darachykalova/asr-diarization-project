@@ -2,17 +2,24 @@ import { useEffect, useRef, useState } from "react";
 
 const WS_URL = import.meta.env.VITE_CALL_AGENT_WS ?? "ws://localhost:8100/ws/call";
 
+type LogKind = "agent" | "system" | "error";
+interface LogEntry { text: string; kind: LogKind; }
+
 export function CallSimulatorPage() {
   const [active, setActive] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
+  const [connecting, setConnecting] = useState(false);
+  const [log, setLog] = useState<LogEntry[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(false);
 
-  function pushLog(line: string) { setLog(l => [...l, line]); }
+  function pushLog(text: string, kind: LogKind = "agent") {
+    setLog(l => [...l, { text, kind }]);
+  }
 
   async function start() {
+    setConnecting(true);
     setLog([]); setActive(true); activeRef.current = true;
     const ws = new WebSocket(WS_URL);
     ws.binaryType = "arraybuffer";
@@ -22,7 +29,7 @@ export function CallSimulatorPage() {
       if (typeof ev.data === "string") {
         const msg = JSON.parse(ev.data);
         if (msg.type === "agent_text") pushLog(`Агент: ${msg.text}`);
-        if (msg.type === "hangup") { pushLog("— Агент завершил звонок —"); stop(); }
+        if (msg.type === "hangup") { pushLog("— Агент завершил звонок —", "system"); stop(); }
       } else {
         const ctx = ctxRef.current!;
         const buf = await ctx.decodeAudioData(ev.data.slice(0));
@@ -31,8 +38,8 @@ export function CallSimulatorPage() {
       }
     };
 
-    ws.onerror = () => { pushLog("Ошибка подключения к агенту"); stop(); };
-    ws.onclose = () => { if (activeRef.current) { pushLog("Соединение прервано"); setActive(false); activeRef.current = false; } };
+    ws.onerror = () => { pushLog("Ошибка подключения к агенту", "error"); stop(); };
+    ws.onclose = () => { if (activeRef.current) { pushLog("Соединение прервано", "error"); setActive(false); activeRef.current = false; } };
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -53,8 +60,10 @@ export function CallSimulatorPage() {
         ws.send(i16.buffer);
       };
     } catch (err) {
-      pushLog("Ошибка микрофона: " + String(err));
+      pushLog("Ошибка микрофона: " + String(err), "error");
       stop();
+    } finally {
+      setConnecting(false);
     }
   }
 
@@ -65,20 +74,26 @@ export function CallSimulatorPage() {
     ctxRef.current?.close();
   }
 
+  function handleStopClick() {
+    pushLog("— Звонок завершён —", "system");
+    stop();
+  }
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Симулятор звонка</h1>
       <p className="text-sm text-gray-500 mb-4">
-        Нажмите «Позвонить», говорите в микрофон как мошенник — агент ответит голосом.
+        Нажмите «Позвонить», говорите в микрофон как мошенник — агент ответит голосом. Микрофон и аудио уходят на реальный бэкенд.
       </p>
       <div className="flex items-center gap-3">
         <button
-          onClick={active ? stop : start}
-          className={`text-white px-6 py-2.5 rounded-lg active:scale-[0.97] transition-[background-color,transform] duration-200 ease-out motion-reduce:active:scale-100 ${
-            active ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+          onClick={active ? handleStopClick : start}
+          disabled={connecting}
+          className={`text-white px-6 py-2.5 rounded-lg active:scale-[0.97] transition-[background-color,transform] duration-200 ease-out motion-reduce:active:scale-100 disabled:opacity-60 ${
+            active ? "bg-gray-700 hover:bg-gray-800" : "bg-green-700 hover:bg-green-800"
           }`}
         >
-          {active ? "Завершить" : "Позвонить"}
+          {connecting ? "Соединение…" : active ? "Завершить" : "Позвонить"}
         </button>
         {active && (
           <span className="flex items-center gap-1.5 text-xs text-red-600">
@@ -87,14 +102,18 @@ export function CallSimulatorPage() {
           </span>
         )}
       </div>
-      <div className="mt-4 bg-white rounded-lg shadow p-4 min-h-40 space-y-1">
-        {log.map((l, i) => <LogLine key={i} text={l} />)}
+      <div className="mt-4 bg-white rounded-lg shadow p-4 min-h-40 max-h-96 overflow-y-auto space-y-1">
+        {log.length === 0 ? (
+          <p className="text-sm text-gray-400">Здесь появится расшифровка звонка</p>
+        ) : (
+          log.map((entry, i) => <LogLine key={i} entry={entry} />)
+        )}
       </div>
     </div>
   );
 }
 
-function LogLine({ text }: { text: string }) {
+function LogLine({ entry }: { entry: LogEntry }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -106,9 +125,13 @@ function LogLine({ text }: { text: string }) {
     <div
       className={`text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
         mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+      } ${
+        entry.kind === "error" ? "text-red-700 bg-red-50 rounded px-2 py-1" :
+        entry.kind === "system" ? "text-gray-500 italic" :
+        "text-gray-800"
       }`}
     >
-      {text}
+      {entry.text}
     </div>
   );
 }
