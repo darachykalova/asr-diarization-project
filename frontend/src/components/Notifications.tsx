@@ -14,7 +14,10 @@ interface Toast {
   id: number;
   job_id: string;
   status: "done" | "failed" | "partial";
+  leaving?: boolean;
 }
+
+const TOAST_EXIT_MS = 200;
 
 let _toastId = 0;
 
@@ -34,8 +37,10 @@ export function Notifications() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const lastCheckedRef = useRef<string>(new Date().toISOString());
 
-  const dismiss = (id: number) =>
-    setToasts(prev => prev.filter(t => t.id !== id));
+  const dismiss = (id: number) => {
+    setToasts(prev => prev.map(t => (t.id === id ? { ...t, leaving: true } : t)));
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), TOAST_EXIT_MS);
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -74,24 +79,40 @@ export function Notifications() {
   return (
     <div className="fixed bottom-28 right-4 z-50 flex flex-col gap-2 items-end">
       {toasts.map(t => (
-        <div
-          key={t.id}
-          className={`flex items-center gap-3 text-white text-sm rounded-lg shadow-lg px-4 py-3 ${STATUS_COLOR[t.status]}`}
-        >
-          <span>
-            <span className="font-semibold">{STATUS_LABEL[t.status]}</span>
-            {" — "}
-            <span className="font-mono text-xs">{t.job_id.slice(0, 8)}</span>
-          </span>
-          <button
-            onClick={() => dismiss(t.id)}
-            className="ml-1 opacity-70 hover:opacity-100 text-base leading-none"
-            aria-label="Закрыть"
-          >
-            ×
-          </button>
-        </div>
+        <ToastItem key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
       ))}
+    </div>
+  );
+}
+
+function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const shown = mounted && !toast.leaving;
+
+  return (
+    <div
+      className={`flex items-center gap-3 text-white text-sm rounded-lg shadow-lg px-4 py-3 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
+        shown ? "opacity-100 translate-y-0" : "opacity-0 translate-y-[20%]"
+      } ${STATUS_COLOR[toast.status]}`}
+    >
+      <span>
+        <span className="font-semibold">{STATUS_LABEL[toast.status]}</span>
+        {" — "}
+        <span className="font-mono text-xs">{toast.job_id.slice(0, 8)}</span>
+      </span>
+      <button
+        onClick={onDismiss}
+        className="ml-1 opacity-70 hover:opacity-100 text-base leading-none"
+        aria-label="Закрыть"
+      >
+        ×
+      </button>
     </div>
   );
 }

@@ -46,6 +46,7 @@ function fmtDate(iso: string): string {
 }
 
 const EMPTY = { q: "", jobIdQ: "", speakerId: "", speakerName: "", minSpeakers: "", maxSpeakers: "", durationMin: "", durationMax: "", status: "", dateFrom: "", dateTo: "" };
+const ROW_EXIT_MS = 200;
 
 type SortBy = "uploaded_at" | "duration" | "speakers";
 type SortOrder = "asc" | "desc";
@@ -86,6 +87,7 @@ export function AudioListPage() {
   const [showMore, setShowMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<AudioListItem | null>(null);
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
 
   function set(field: keyof typeof EMPTY) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -149,11 +151,19 @@ export function AudioListPage() {
         const err = await resp.json().catch(() => ({}));
         throw new Error(err.detail ?? `HTTP ${resp.status}`);
       }
-      setData((d) =>
-        d
-          ? { ...d, items: d.items.filter((i) => i.job_id !== jobId), total: d.total - 1 }
-          : d
-      );
+      setRemovingIds((prev) => new Set(prev).add(jobId));
+      setTimeout(() => {
+        setData((d) =>
+          d
+            ? { ...d, items: d.items.filter((i) => i.job_id !== jobId), total: d.total - 1 }
+            : d
+        );
+        setRemovingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(jobId);
+          return next;
+        });
+      }, ROW_EXIT_MS);
     } catch (e) {
       setError(String(e));
     }
@@ -217,7 +227,12 @@ export function AudioListPage() {
           </button>
         </div>
 
-        {showMore && (
+        <div
+          className={`grid overflow-hidden transition-[grid-template-rows] duration-[250ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
+            showMore ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          }`}
+        >
+          <div className="overflow-hidden">
           <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">ID записи</label>
@@ -272,7 +287,8 @@ export function AudioListPage() {
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
-        )}
+          </div>
+        </div>
       </form>
 
       {initialLoading ? (
@@ -315,7 +331,12 @@ export function AudioListPage() {
                       </tr>
                     ) : (
                       data.items.map((item) => (
-                        <tr key={item.job_id} className="hover:bg-gray-50 transition-colors">
+                        <tr
+                          key={item.job_id}
+                          className={`hover:bg-gray-50 transition-opacity duration-[200ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                            removingIds.has(item.job_id) ? "opacity-0" : "opacity-100"
+                          }`}
+                        >
                           <td className="px-4 py-3">
                             <Link to={`/audio/${item.job_id}`} className="text-blue-600 hover:underline font-medium">
                               {item.title}

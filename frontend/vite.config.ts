@@ -14,6 +14,7 @@ export default defineConfig({
       "/v1": {
         target: BACKEND,
         changeOrigin: true,
+        secure: false,
       },
     },
   },
