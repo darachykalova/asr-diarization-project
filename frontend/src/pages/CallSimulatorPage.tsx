@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const WS_URL = import.meta.env.VITE_CALL_AGENT_WS ?? "ws://localhost:8100/ws/call";
 
@@ -71,12 +71,44 @@ export function CallSimulatorPage() {
       <p className="text-sm text-gray-500 mb-4">
         Нажмите «Позвонить», говорите в микрофон как мошенник — агент ответит голосом.
       </p>
-      {!active
-        ? <button onClick={start} className="bg-green-600 text-white px-6 py-2.5 rounded-lg">Позвонить</button>
-        : <button onClick={stop} className="bg-red-600 text-white px-6 py-2.5 rounded-lg">Завершить</button>}
-      <div className="mt-4 bg-white rounded-lg shadow p-4 min-h-40 space-y-1">
-        {log.map((l, i) => <div key={i} className="text-sm">{l}</div>)}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={active ? stop : start}
+          className={`text-white px-6 py-2.5 rounded-lg active:scale-[0.97] transition-[background-color,transform] duration-200 ease-out motion-reduce:active:scale-100 ${
+            active ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+          }`}
+        >
+          {active ? "Завершить" : "Позвонить"}
+        </button>
+        {active && (
+          <span className="flex items-center gap-1.5 text-xs text-red-600">
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse motion-reduce:animate-none" />
+            В звонке
+          </span>
+        )}
       </div>
+      <div className="mt-4 bg-white rounded-lg shadow p-4 min-h-40 space-y-1">
+        {log.map((l, i) => <LogLine key={i} text={l} />)}
+      </div>
+    </div>
+  );
+}
+
+function LogLine({ text }: { text: string }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <div
+      className={`text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
+        mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+      }`}
+    >
+      {text}
     </div>
   );
 }
