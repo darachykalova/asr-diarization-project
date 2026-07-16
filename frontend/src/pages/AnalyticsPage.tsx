@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { FadeIn } from "../components/FadeIn";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -20,7 +22,7 @@ function useGet<T>(path: string, token: string) {
     fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(setData)
-      .catch(e => setError(String(e)));
+      .catch(e => setError(e instanceof Error ? e.message : String(e)));
   }, [path, token]);
   return { data, error };
 }
@@ -81,10 +83,12 @@ export function AnalyticsPage() {
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Аналитика</h1>
 
       {(summaryErr || wordsErr) && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">
           {summaryErr || wordsErr}
         </div>
       )}
+
+      {!summary && !summaryErr && <LoadingSpinner label="Загрузка сводки…" />}
 
       {/* Карточки сводки */}
       {summary && (
@@ -110,6 +114,7 @@ export function AnalyticsPage() {
         {/* Частые слова */}
         <div className="bg-white rounded-lg shadow p-5">
           <h2 className="font-semibold text-gray-800 mb-4">Частые слова</h2>
+          {!words && <p className="text-gray-400 text-sm">Загрузка…</p>}
           {words && words.length === 0 && (
             <p className="text-gray-400 text-sm">Нет данных</p>
           )}
@@ -121,6 +126,7 @@ export function AnalyticsPage() {
         {/* Частые спикеры */}
         <div className="bg-white rounded-lg shadow p-5">
           <h2 className="font-semibold text-gray-800 mb-4">Частые спикеры</h2>
+          {!speakers && <p className="text-gray-400 text-sm">Загрузка…</p>}
           {speakers && speakers.length === 0 && (
             <p className="text-gray-400 text-sm">Нет данных</p>
           )}
@@ -137,26 +143,30 @@ export function AnalyticsPage() {
           <select
             value={bucket}
             onChange={e => setBucket(e.target.value as "day" | "hour")}
-            className="border border-gray-200 rounded px-2 py-1 text-sm"
+            aria-label="Гранулярность графика загрузок"
+            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="day">По дням</option>
             <option value="hour">По часам</option>
           </select>
         </div>
+        {!uploads && <p className="text-gray-400 text-sm">Загрузка…</p>}
         {uploads && uploads.length === 0 && (
           <p className="text-gray-400 text-sm">Нет данных</p>
         )}
         {uploads && uploads.length > 0 && (
-          <div className="flex items-end gap-1 overflow-x-auto pb-6" style={{ minHeight: 120 }}>
-            {uploads.map(u => (
-              <VBar
-                key={u.bucket}
-                value={u.count}
-                max={maxUp}
-                label={u.bucket}
-              />
-            ))}
-          </div>
+          <FadeIn key={bucket}>
+            <div className="flex items-end gap-1 overflow-x-auto pb-6" style={{ minHeight: 120 }}>
+              {uploads.map(u => (
+                <VBar
+                  key={u.bucket}
+                  value={u.count}
+                  max={maxUp}
+                  label={u.bucket}
+                />
+              ))}
+            </div>
+          </FadeIn>
         )}
       </div>
     </div>
