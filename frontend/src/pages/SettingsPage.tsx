@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -66,6 +67,13 @@ const SETTING_META: Record<string, {
 
 const ALL_FORMATS = ["mp3", "wav", "ogg", "flac", "m4a", "webm", "mp4", "aac", "opus"];
 
+// Смысловые группы настроек; неизвестные ключи попадают в «Прочее»
+const SETTING_GROUPS: { title: string; keys: string[] }[] = [
+  { title: "Распознавание", keys: ["default_asr_model", "default_language", "max_speakers"] },
+  { title: "Загрузка файлов", keys: ["max_upload_size_mb", "allowed_formats"] },
+  { title: "Журнал аудита", keys: ["audit_log_retention_days"] },
+];
+
 function SuccessBanner({ show }: { show: boolean }) {
   const [mounted, setMounted] = useState(false);
 
@@ -75,19 +83,23 @@ function SuccessBanner({ show }: { show: boolean }) {
     return () => cancelAnimationFrame(id);
   }, [show]);
 
-  if (!show) return null;
+  // Обёртка живёт в DOM постоянно, чтобы скринридер объявил появившийся текст
   return (
-    <div
-      className={`bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
-        mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
-      }`}
-    >
-      Настройки сохранены
+    <div role="status" aria-live="polite">
+      {show && (
+        <div
+          className={`bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+          }`}
+        >
+          Настройки сохранены
+        </div>
+      )}
     </div>
   );
 }
 
-function Tooltip({ text }: { text: string }) {
+function Tooltip({ id, text }: { id: string; text: string }) {
   const [show, setShow] = useState(false);
   const [visible, setVisible] = useState(false);
 
@@ -99,13 +111,21 @@ function Tooltip({ text }: { text: string }) {
 
   return (
     <span className="relative inline-block ml-1.5 align-middle">
-      <span
-        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs cursor-help hover:bg-blue-100 hover:text-blue-600 transition-colors"
+      <button
+        type="button"
+        aria-label="Пояснение"
+        aria-describedby={show ? id : undefined}
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
-      >?</span>
+        onFocus={() => setShow(true)}
+        onBlur={() => setShow(false)}
+        onKeyDown={(e) => { if (e.key === "Escape") setShow(false); }}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs cursor-help hover:bg-blue-100 hover:text-blue-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+      >?</button>
       {show && (
         <span
+          role="tooltip"
+          id={id}
           className={`absolute left-6 top-0 z-50 w-72 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg leading-relaxed origin-top-left transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 ${
             visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           }`}
@@ -117,10 +137,10 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-function AsrModelControl({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function AsrModelControl({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}
-      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+    <select id={id} value={value} onChange={e => onChange(e.target.value)}
+      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       <option value="">Авто (по качеству звука)</option>
       <option value="tiny">Быстрая (tiny)</option>
       <option value="base">Средняя (base)</option>
@@ -189,20 +209,32 @@ const WHISPER_LANGUAGES: [string, string][] = [
   ["cy", "Валлийский"],
 ];
 
-function LanguageControl({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+// Частые для этой платформы языки — закреплены в начале списка
+const PINNED_LANGUAGES = ["ru", "uk", "be", "en"];
+
+function LanguageControl({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const pinned = PINNED_LANGUAGES
+    .map(code => WHISPER_LANGUAGES.find(([c]) => c === code))
+    .filter((x): x is [string, string] => Boolean(x));
+  const rest = WHISPER_LANGUAGES.filter(([c]) => !PINNED_LANGUAGES.includes(c));
+
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}
-      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+    <select id={id} value={value} onChange={e => onChange(e.target.value)}
+      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       <option value="">Автоопределение</option>
-      {WHISPER_LANGUAGES.map(([code, name]) => (
+      {pinned.map(([code, name]) => (
+        <option key={code} value={code}>{name} ({code})</option>
+      ))}
+      <option value="" disabled>──────────</option>
+      {rest.map(([code, name]) => (
         <option key={code} value={code}>{name} ({code})</option>
       ))}
     </select>
   );
 }
 
-function NumberControl({ value, onChange, unit, placeholder, min, max }: {
-  value: string; onChange: (v: string) => void; unit?: string; placeholder?: string; min?: number; max?: number;
+function NumberControl({ id, value, onChange, unit, placeholder, min, max }: {
+  id: string; value: string; onChange: (v: string) => void; unit?: string; placeholder?: string; min?: number; max?: number;
 }) {
   const num = value === "" ? null : Number(value);
   const outOfRange = num !== null && ((min !== undefined && num < min) || (max !== undefined && num > max));
@@ -211,23 +243,26 @@ function NumberControl({ value, onChange, unit, placeholder, min, max }: {
     <div>
       <div className="flex items-center gap-2">
         <input
+          id={id}
           type="number"
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           min={min}
           max={max}
+          aria-invalid={outOfRange || undefined}
+          aria-describedby={`${id}-range${outOfRange ? ` ${id}-err` : ""}`}
           className={`w-40 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-            outOfRange ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"
+            outOfRange ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-blue-500"
           }`}
         />
         {unit && <span className="text-sm text-gray-500">{unit}</span>}
       </div>
       {min !== undefined && max !== undefined && (
-        <p className="text-xs text-gray-400 mt-1">Допустимо: {min} – {max}</p>
+        <p id={`${id}-range`} className="text-xs text-gray-500 mt-1">Допустимо: {min} – {max}</p>
       )}
       {outOfRange && (
-        <p className="text-xs text-red-500 mt-1">
+        <p id={`${id}-err`} className="text-xs text-red-500 mt-1">
           Значение должно быть от {min} до {max}
         </p>
       )}
@@ -235,8 +270,10 @@ function NumberControl({ value, onChange, unit, placeholder, min, max }: {
   );
 }
 
-function FormatsControl({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const active = value ? value.split(",").map(s => s.trim()).filter(Boolean) : ALL_FORMATS;
+function FormatsControl({ labelId, value, onChange }: { labelId: string; value: string; onChange: (v: string) => void }) {
+  // Пустое значение = «не задано» = разрешены все (контракт API) — показываем это
+  // честно, а не молча отмечаем все галочки обратно.
+  const active = value ? value.split(",").map(s => s.trim()).filter(Boolean) : [];
 
   function toggle(fmt: string) {
     const next = active.includes(fmt) ? active.filter(f => f !== fmt) : [...active, fmt];
@@ -244,18 +281,25 @@ function FormatsControl({ value, onChange }: { value: string; onChange: (v: stri
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {ALL_FORMATS.map(fmt => (
-        <label key={fmt} className="flex items-center gap-1.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={active.includes(fmt)}
-            onChange={() => toggle(fmt)}
-            className="rounded text-blue-600 focus:ring-blue-300"
-          />
-          <span className="text-sm font-mono text-gray-700">.{fmt}</span>
-        </label>
-      ))}
+    <div role="group" aria-labelledby={labelId}>
+      <div className="flex flex-wrap gap-2">
+        {ALL_FORMATS.map(fmt => (
+          <label key={fmt} className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={active.includes(fmt)}
+              onChange={() => toggle(fmt)}
+              className="rounded text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm font-mono text-gray-700">.{fmt}</span>
+          </label>
+        ))}
+      </div>
+      {active.length === 0 && (
+        <p className="text-xs text-gray-500 mt-2">
+          Ни один формат не выбран — значение не задано, разрешены все форматы.
+        </p>
+      )}
     </div>
   );
 }
@@ -264,11 +308,15 @@ export function SettingsPage() {
   const { token, user } = useAuth();
   const [settings, setSettings] = useState<Setting[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const isSuperAdmin = user?.role === "super_admin";
+
+  const dirtyCount = settings.filter(s => (edits[s.key] ?? s.value) !== s.value).length;
+  const isDirty = dirtyCount > 0;
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -282,11 +330,18 @@ export function SettingsPage() {
         data.forEach(s => { map[s.key] = s.value; });
         setEdits(map);
       })
-      .catch(e => setError(String(e)));
+      .catch(e => setLoadError(String(e)));
   }, [token, isSuperAdmin]);
 
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
   const handleSave = async () => {
-    setSaving(true); setError(null); setSuccess(false);
+    setSaving(true); setSaveError(null); setSuccess(false);
     const updates = settings.map(s => ({ key: s.key, value: edits[s.key] ?? s.value }));
     try {
       const resp = await fetch(`${API_BASE}/v1/admin/settings`, {
@@ -296,7 +351,7 @@ export function SettingsPage() {
       });
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
-        throw new Error(body.detail ?? `HTTP ${resp.status}`);
+        throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${resp.status}`);
       }
       const saved: Setting[] = await resp.json();
       setSettings(saved);
@@ -306,7 +361,12 @@ export function SettingsPage() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (e) {
-      setError(String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setSaveError(
+        msg === "Failed to fetch"
+          ? "Нет соединения с сервером — настройки не сохранены."
+          : `Не удалось сохранить: ${msg}`
+      );
     } finally {
       setSaving(false);
     }
@@ -316,23 +376,47 @@ export function SettingsPage() {
     const meta = SETTING_META[s.key];
     const val = edits[s.key] ?? s.value;
     const set = (v: string) => setEdits(prev => ({ ...prev, [s.key]: v }));
+    const id = `set-${s.key}`;
 
     if (!meta) {
       return (
-        <input type="text" value={val} onChange={e => set(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        <input id={id} type="text" value={val} onChange={e => set(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
       );
     }
     switch (meta.control) {
-      case "asr_model":   return <AsrModelControl value={val} onChange={set} />;
-      case "language":    return <LanguageControl value={val} onChange={set} />;
-      case "number":      return <NumberControl value={val} onChange={set} unit={meta.unit} placeholder={meta.placeholder} min={meta.min} max={meta.max} />;
-      case "formats":     return <FormatsControl value={val} onChange={set} />;
+      case "asr_model":   return <AsrModelControl id={id} value={val} onChange={set} />;
+      case "language":    return <LanguageControl id={id} value={val} onChange={set} />;
+      case "number":      return <NumberControl id={id} value={val} onChange={set} unit={meta.unit} placeholder={meta.placeholder} min={meta.min} max={meta.max} />;
+      case "formats":     return <FormatsControl labelId={`${id}-label`} value={val} onChange={set} />;
       default:            return (
-        <input type="text" value={val} onChange={e => set(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        <input id={id} type="text" value={val} onChange={e => set(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       );
     }
+  }
+
+  function renderSettingRow(s: Setting) {
+    const meta = SETTING_META[s.key];
+    const id = `set-${s.key}`;
+    const isGroupControl = meta?.control === "formats";
+    return (
+      <div key={s.key} className="p-5">
+        <div className="flex items-center mb-3">
+          {isGroupControl ? (
+            <span id={`${id}-label`} className="font-medium text-gray-800 text-sm">
+              {meta?.label ?? s.key}
+            </span>
+          ) : (
+            <label htmlFor={id} className="font-medium text-gray-800 text-sm">
+              {meta?.label ?? s.key}
+            </label>
+          )}
+          {meta?.hint && <Tooltip id={`${id}-hint`} text={meta.hint} />}
+        </div>
+        {renderControl(s)}
+      </div>
+    );
   }
 
   if (!isSuperAdmin) {
@@ -345,53 +429,58 @@ export function SettingsPage() {
     );
   }
 
-  // Сортируем по порядку из SETTING_META, неизвестные — в конец
-  const ORDER = Object.keys(SETTING_META);
-  const sorted = [...settings].sort((a, b) => {
-    const ia = ORDER.indexOf(a.key), ib = ORDER.indexOf(b.key);
-    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-  });
+  const known = new Set(SETTING_GROUPS.flatMap(g => g.keys));
+  const groups = SETTING_GROUPS
+    .map(g => ({
+      title: g.title,
+      items: g.keys
+        .map(k => settings.find(s => s.key === k))
+        .filter((s): s is Setting => Boolean(s)),
+    }))
+    .filter(g => g.items.length > 0);
+  const other = settings.filter(s => !known.has(s.key));
+  if (other.length > 0) groups.push({ title: "Прочее", items: other });
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Настройки платформы</h1>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
+      {loadError && (
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{loadError}</div>
       )}
       <SuccessBanner show={success} />
 
-      <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
-        {sorted.map(s => {
-          const meta = SETTING_META[s.key];
-          return (
-            <div key={s.key} className="p-5">
-              <div className="flex items-center mb-3">
-                <span className="font-medium text-gray-800 text-sm">
-                  {meta?.label ?? s.key}
-                </span>
-                {meta?.hint && <Tooltip text={meta.hint} />}
+      {settings.length === 0 && !loadError ? (
+        <LoadingSpinner label="Загрузка настроек…" />
+      ) : (
+        <>
+          {groups.map(g => (
+            <section key={g.title} className="mb-5">
+              <h2 className="text-base font-semibold text-gray-800 mb-2">{g.title}</h2>
+              <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+                {g.items.map(renderSettingRow)}
               </div>
-              {renderControl(s)}
+            </section>
+          ))}
+
+          {settings.length > 0 && (
+            <div className="mt-5 flex items-center justify-end gap-4">
+              {saveError && (
+                <p role="alert" className="text-sm text-red-600">{saveError}</p>
+              )}
+              {isDirty && !saving && (
+                <span className="text-sm text-gray-500">Изменено: {dirtyCount}</span>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={saving || !isDirty}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2.5 rounded-lg active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
+              >
+                {saving ? "Сохранение…" : "Сохранить"}
+              </button>
             </div>
-          );
-        })}
-
-        {sorted.length === 0 && !error && (
-          <div className="p-6 text-center text-gray-400 text-sm">Загрузка…</div>
-        )}
-      </div>
-
-      {sorted.length > 0 && (
-        <div className="mt-5 flex justify-end">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2.5 rounded-lg transition-colors"
-          >
-            {saving ? "Сохранение…" : "Сохранить"}
-          </button>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
