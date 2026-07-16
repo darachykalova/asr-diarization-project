@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -26,16 +26,19 @@ function fmtDate(iso: string) {
 }
 
 export function UsersPage() {
-  const { token } = useAuth();
+  const { token, user: me } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [patchingIds, setPatchingIds] = useState<Set<number>>(new Set());
 
   // Форма создания
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"moderator" | "super_admin">("moderator");
   const [creating, setCreating] = useState(false);
+  const loginInputRef = useRef<HTMLInputElement>(null);
 
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -45,6 +48,10 @@ export function UsersPage() {
     onConfirm: () => void;
   } | null>(null);
 
+  function errMessage(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+  }
+
   async function load() {
     try {
       const resp = await fetch(`${API_BASE}/v1/admin/users`, {
@@ -53,7 +60,7 @@ export function UsersPage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setUsers(await resp.json());
     } catch (e) {
-      setError(String(e));
+      setError(errMessage(e));
     } finally {
       setInitialLoading(false);
     }
@@ -64,7 +71,8 @@ export function UsersPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
-    setError(null);
+    setError(null); setNotice(null);
+    const createdLogin = login;
     try {
       const resp = await fetch(`${API_BASE}/v1/admin/users`, {
         method: "POST",
@@ -76,9 +84,12 @@ export function UsersPage() {
         throw new Error(err.detail ?? `HTTP ${resp.status}`);
       }
       setLogin(""); setPassword(""); setRole("moderator");
+      setNotice(`Пользователь «${createdLogin}» создан`);
+      setTimeout(() => setNotice(null), 4000);
+      loginInputRef.current?.focus();
       await load();
     } catch (e) {
-      setError(String(e));
+      setError(errMessage(e));
     } finally {
       setCreating(false);
     }
@@ -86,6 +97,7 @@ export function UsersPage() {
 
   async function patchUser(id: number, patch: Partial<{ role: string; is_blocked: boolean }>) {
     setError(null);
+    setPatchingIds(prev => new Set(prev).add(id));
     try {
       const resp = await fetch(`${API_BASE}/v1/admin/users/${id}`, {
         method: "PATCH",
@@ -98,7 +110,13 @@ export function UsersPage() {
       }
       await load();
     } catch (e) {
-      setError(String(e));
+      setError(errMessage(e));
+    } finally {
+      setPatchingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -118,11 +136,12 @@ export function UsersPage() {
   }
 
   function askRoleConfirm(u: AdminUser, newRole: string) {
+    const demotingSuperAdmin = u.role === "super_admin" && newRole !== "super_admin";
     setConfirmAction({
       title: "Сменить роль пользователя?",
       message: `${u.login}: роль изменится на «${ROLE_LABEL[newRole] ?? newRole}».`,
       confirmLabel: "Сменить роль",
-      danger: false,
+      danger: demotingSuperAdmin,
       onConfirm: () => {
         patchUser(u.id, { role: newRole });
         setConfirmAction(null);
@@ -135,34 +154,48 @@ export function UsersPage() {
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Пользователи</h1>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">
           {error}
         </div>
       )}
+      <div role="status" aria-live="polite">
+        {notice && (
+          <div className="bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm">
+            {notice}
+          </div>
+        )}
+      </div>
 
       {initialLoading ? (
         <LoadingSpinner />
       ) : (
         <>
           {/* Форма создания */}
-          <form onSubmit={handleCreate} className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-3 items-end">
+          <form onSubmit={handleCreate} autoComplete="off" className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-3 items-end">
             <div className="flex-1 min-w-40">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Логин</label>
+              <label htmlFor="new-user-login" className="block text-xs font-medium text-gray-600 mb-1">Логин</label>
               <input
+                id="new-user-login" name="new-user-login" ref={loginInputRef}
                 value={login} onChange={e => setLogin(e.target.value)} required
+                autoComplete="off"
                 className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="flex-1 min-w-40">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Пароль</label>
+              <label htmlFor="new-user-password" className="block text-xs font-medium text-gray-600 mb-1">Пароль</label>
               <input
+                id="new-user-password" name="new-user-password"
                 type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
+                autoComplete="new-password"
+                aria-describedby="new-user-password-hint"
                 className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <p id="new-user-password-hint" className="text-xs text-gray-500 mt-1">Минимум 8 символов</p>
             </div>
             <div className="min-w-36">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Роль</label>
+              <label htmlFor="new-user-role" className="block text-xs font-medium text-gray-600 mb-1">Роль</label>
               <select
+                id="new-user-role"
                 value={role} onChange={e => setRole(e.target.value as "moderator" | "super_admin")}
                 className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -192,42 +225,62 @@ export function UsersPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {users.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">Пусто</td></tr>
-                ) : users.map(u => (
-                  <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium">{u.login}</td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={u.role}
-                        onChange={e => askRoleConfirm(u, e.target.value)}
-                        className="border border-gray-200 rounded px-2 py-0.5 text-xs"
-                      >
-                        <option value="moderator">Модератор</option>
-                        <option value="super_admin">Супер-Админ</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.is_blocked ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                      }`}>
-                        {u.is_blocked ? "Заблокирован" : "Активен"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">{fmtDate(u.created_at)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => askBlockConfirm(u)}
-                        className={`text-xs px-2 py-1 rounded transition-colors ${
-                          u.is_blocked
-                            ? "bg-green-50 text-green-700 hover:bg-green-100"
-                            : "bg-red-50 text-red-700 hover:bg-red-100"
-                        }`}
-                      >
-                        {u.is_blocked ? "Разблокировать" : "Заблокировать"}
-                      </button>
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-gray-400">
+                      Пользователей пока нет — создайте первого через форму выше.
                     </td>
                   </tr>
-                ))}
+                ) : users.map(u => {
+                  const isSelf = u.login === me?.login;
+                  const busy = patchingIds.has(u.id);
+                  return (
+                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium">
+                        {u.login}
+                        {isSelf && <span className="ml-1.5 text-xs text-gray-500">(вы)</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={u.role}
+                          onChange={e => askRoleConfirm(u, e.target.value)}
+                          disabled={isSelf || busy}
+                          aria-label={`Роль пользователя ${u.login}`}
+                          title={isSelf ? "Свою роль изменить нельзя" : undefined}
+                          className="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                        >
+                          <option value="moderator">Модератор</option>
+                          <option value="super_admin">Супер-Админ</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          u.is_blocked ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                        }`}>
+                          {u.is_blocked ? "Заблокирован" : "Активен"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{fmtDate(u.created_at)}</td>
+                      <td className="px-4 py-3">
+                        {isSelf ? (
+                          <span className="text-xs text-gray-400" title="Себя заблокировать нельзя">—</span>
+                        ) : (
+                          <button
+                            onClick={() => askBlockConfirm(u)}
+                            disabled={busy}
+                            aria-label={`${u.is_blocked ? "Разблокировать" : "Заблокировать"} пользователя ${u.login}`}
+                            className={`text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 ${
+                              u.is_blocked
+                                ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                : "bg-red-50 text-red-700 hover:bg-red-100"
+                            }`}
+                          >
+                            {busy ? "…" : u.is_blocked ? "Разблокировать" : "Заблокировать"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
