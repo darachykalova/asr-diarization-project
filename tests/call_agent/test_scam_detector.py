@@ -15,6 +15,7 @@ def test_loads_scenarios():
         "fake_bank", "gas_service", "police",
         "relative_in_trouble", "mobile_operator", "tech_support",
         "gosuslugi", "delivery", "broker_investment", "lottery",
+        "fake_employer",
     }
 
 
@@ -216,4 +217,19 @@ def test_lottery_crosses_threshold():
 def test_innocent_lottery_talk_stays_undetermined():
     d = _detector()
     d.feed("мы вчера играли в лотерею с друзьями")     # 30 < 70
+    assert d.verdict()[0] == "undetermined"
+
+
+def test_fake_employer_crosses_threshold():
+    d = _detector()
+    d.feed("у нас есть вакансия удалённая работа")      # 25 + 35 = 60
+    d.feed("нужно оплатить обучение перед стартом")      # 50 + 40 = 90
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "scam"
+    assert scenario == "fake_employer"
+
+
+def test_innocent_job_talk_stays_undetermined():
+    d = _detector()
+    d.feed("я нашла вакансию удалённая работа в такси")  # 25 + 35 = 60 < 70
     assert d.verdict()[0] == "undetermined"
