@@ -8,10 +8,13 @@ def _detector():
     return ScamDetector(load_scenarios(SCEN_DIR))
 
 
-def test_loads_three_scenarios():
+def test_loads_scenarios():
     scenarios = load_scenarios(SCEN_DIR)
     keys = {s.key for s in scenarios}
-    assert keys == {"fake_bank", "gas_service", "police"}
+    assert keys == {
+        "fake_bank", "gas_service", "police",
+        "relative_in_trouble",
+    }
 
 
 def test_clean_call_is_undetermined():
@@ -109,4 +112,18 @@ def test_prodiktovat_infinitive_matches():
 def test_innocent_code_mention_stays_undetermined():
     d = _detector()
     d.feed("я тебе код от домофона пришлю вечером")
+    assert d.verdict()[0] == "undetermined"
+
+
+def test_relative_in_trouble_crosses_threshold():
+    d = _detector()
+    d.feed("мама это я попал в аварию")          # 45 + 45 = 90
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "scam"
+    assert scenario == "relative_in_trouble"
+
+
+def test_innocent_family_call_stays_undetermined():
+    d = _detector()
+    d.feed("привет мама это я как твои дела")     # 45 < 70
     assert d.verdict()[0] == "undetermined"
