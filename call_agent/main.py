@@ -43,9 +43,9 @@ def _startup():
     app.state.tts = TTSService(settings)
     app.state.semantic_executor = ThreadPoolExecutor(max_workers=2)
     # Pre-synthesize every canned phrase so calls have zero TTS latency.
-    canned = (app.state.replies["greeting"] + app.state.replies["fillers"]
-              + app.state.replies["keep_talking"] + app.state.replies["take_message"]
-              + app.state.replies["before_hangup"])
+    canned = (app.state.replies["greeting"] + app.state.replies["greeting_reply"]
+              + app.state.replies["fillers"] + app.state.replies["keep_talking"]
+              + app.state.replies["take_message"] + app.state.replies["before_hangup"])
     app.state.tts.warm_cache(canned)
     from vosk import Model
     app.state.vosk_model = Model(settings.vosk_model_path)

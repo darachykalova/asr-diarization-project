@@ -6,6 +6,19 @@ from dataclasses import dataclass
 
 import yaml
 
+# Простые слова приветствия — если звонящий только поздоровался (и это не
+# совпало ни с одним сценарием мошенничества), отвечаем по-человечески,
+# а не тяни-время фразой из keep_talking.
+_GREETING_WORDS = (
+    "здравствуйте", "здравствуй", "добрый день", "добрый вечер",
+    "доброе утро", "приветствую", "привет",
+)
+
+
+def _is_greeting(text: str) -> bool:
+    lowered = text.lower()
+    return any(word in lowered for word in _GREETING_WORDS)
+
 
 @dataclass
 class Reply:
@@ -45,7 +58,9 @@ class DialogEngine:
     def before_hangup_line(self) -> str:
         return self._pick("before_hangup")
 
-    def on_caller_utterance(self, text: str, verdict: str) -> Reply:
+    def on_caller_utterance(self, text: str, verdict: str, has_scenario_hit: bool = False) -> Reply:
         if verdict == "scam":
             return Reply(text="", kind="hangup", hang_up=True)
+        if not has_scenario_hit and _is_greeting(text):
+            return Reply(text=self._pick("greeting_reply"), kind="talk", hang_up=False)
         return Reply(text=self._pick("keep_talking"), kind="talk", hang_up=False)

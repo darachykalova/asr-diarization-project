@@ -31,6 +31,24 @@ def test_undetermined_keeps_talking():
                           "Ой, а куда нажать-то?", "Подождите, я не поняла."]
 
 
+def test_greeting_phrase_gets_greeting_reply_not_stalling():
+    e = _engine()
+    reply = e.on_caller_utterance("здравствуйте", verdict="undetermined")
+    assert reply.hang_up is False
+    assert reply.text in ["Здравствуйте, слушаю вас.", "Добрый день, кто это?",
+                          "Здравствуйте, да, я на связи."]
+
+
+def test_greeting_phrase_with_scenario_hit_still_keeps_talking():
+    # Если в той же фразе уже сработал сценарий мошенничества, наивный
+    # ответ на приветствие не должен маскировать это — обычная stalling-фраза
+    e = _engine()
+    reply = e.on_caller_utterance("здравствуйте, это служба безопасности банка",
+                                  verdict="undetermined", has_scenario_hit=True)
+    assert reply.text in ["Ага… и что?", "Так, а мне что делать?",
+                          "Ой, а куда нажать-то?", "Подождите, я не поняла."]
+
+
 def test_filler_from_pool():
     e = _engine()
     assert e.filler() in ["Сейчас-сейчас, минуточку…", "А? Повторите, пожалуйста.",

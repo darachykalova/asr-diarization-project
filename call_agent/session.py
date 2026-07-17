@@ -118,7 +118,7 @@ class CallSession:
             if semantic_actions is not None:
                 return semantic_actions
 
-        reply = self._dialog.on_caller_utterance(text, verdict)
+        reply = self._dialog.on_caller_utterance(text, verdict, has_scenario_hit=delta > 0)
         if reply.hang_up:
             self._state = CallState.HANGUP
             self._ended_reason = "detected_scam"

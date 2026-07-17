@@ -61,11 +61,20 @@ def test_scam_flow_hangs_up():
 
 
 def test_clean_call_keeps_talking():
-    s = _session(["привет как дела"])
+    s = _session(["ну и что дальше"])
     s.start()
     actions = s.on_pcm(b"\x00\x00")
     assert all(a.type != "hangup" for a in actions)
     assert s.result().verdict == "undetermined"
+
+
+def test_greeting_utterance_gets_greeting_reply():
+    s = _session(["здравствуйте"])
+    s.start()
+    actions = s.on_pcm(b"\x00\x00")
+    assert all(a.type != "hangup" for a in actions)
+    assert actions[0].text in ["Здравствуйте, слушаю вас.", "Добрый день, кто это?",
+                               "Здравствуйте, да, я на связи."]
 
 
 def test_ambiguous_score_without_submitter_falls_through_normally():
