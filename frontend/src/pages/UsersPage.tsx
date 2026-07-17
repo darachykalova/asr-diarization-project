@@ -29,7 +29,8 @@ export function UsersPage() {
   const { token, user: me } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [createdCreds, setCreatedCreds] = useState<{ login: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [patchingIds, setPatchingIds] = useState<Set<number>>(new Set());
 
@@ -71,8 +72,9 @@ export function UsersPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
-    setError(null); setNotice(null);
+    setError(null); setCreatedCreds(null);
     const createdLogin = login;
+    const createdPassword = password;
     try {
       const resp = await fetch(`${API_BASE}/v1/admin/users`, {
         method: "POST",
@@ -84,14 +86,25 @@ export function UsersPage() {
         throw new Error(err.detail ?? `HTTP ${resp.status}`);
       }
       setLogin(""); setPassword(""); setRole("moderator");
-      setNotice(`Пользователь «${createdLogin}» создан`);
-      setTimeout(() => setNotice(null), 4000);
+      setCreatedCreds({ login: createdLogin, password: createdPassword });
+      setCopied(false);
       loginInputRef.current?.focus();
       await load();
     } catch (e) {
       setError(errMessage(e));
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function copyCredentials() {
+    if (!createdCreds) return;
+    try {
+      await navigator.clipboard.writeText(`${createdCreds.login} / ${createdCreds.password}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Не удалось скопировать — выделите и скопируйте вручную");
     }
   }
 
@@ -158,13 +171,33 @@ export function UsersPage() {
           {error}
         </div>
       )}
-      <div role="status" aria-live="polite">
-        {notice && (
-          <div className="bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm">
-            {notice}
+      {createdCreds && (
+        <div role="status" className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 text-sm">
+          <p className="text-green-800 font-medium mb-2">
+            Пользователь «{createdCreds.login}» создан
+          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white border border-green-200 rounded px-3 py-2">
+            <span className="text-gray-700"><span className="text-gray-500">Логин:</span> {createdCreds.login}</span>
+            <span className="text-gray-700"><span className="text-gray-500">Пароль:</span> {createdCreds.password}</span>
+            <button
+              type="button"
+              onClick={copyCredentials}
+              className="ml-auto text-xs px-2.5 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 active:scale-[0.97] transition-[background-color,transform] motion-reduce:active:scale-100"
+            >
+              {copied ? "Скопировано" : "Скопировать"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreatedCreds(null)}
+              aria-label="Закрыть"
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ×
+            </button>
           </div>
-        )}
-      </div>
+          <p className="text-xs text-gray-500 mt-2">Сохраните пароль сейчас — он больше нигде не отобразится.</p>
+        </div>
+      )}
 
       {initialLoading ? (
         <LoadingSpinner />

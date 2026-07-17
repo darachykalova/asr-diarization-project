@@ -3,7 +3,11 @@ import { useEffect, useRef, useState } from "react";
 const WS_URL = import.meta.env.VITE_CALL_AGENT_WS ?? "ws://localhost:8100/ws/call";
 
 type LogKind = "agent" | "system" | "error";
-interface LogEntry { text: string; kind: LogKind; }
+interface LogEntry { text: string; kind: LogKind; time: string; }
+
+function nowLabel() {
+  return new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
 
 export function CallSimulatorPage() {
   const [active, setActive] = useState(false);
@@ -15,7 +19,7 @@ export function CallSimulatorPage() {
   const activeRef = useRef(false);
 
   function pushLog(text: string, kind: LogKind = "agent") {
-    setLog(l => [...l, { text, kind }]);
+    setLog(l => [...l, { text, kind, time: nowLabel() }]);
   }
 
   async function start() {
@@ -127,7 +131,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
 
   return (
     <div
-      className={`text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
+      className={`flex items-baseline gap-2 text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:translate-y-0 ${
         mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
       } ${
         entry.kind === "error" ? "text-red-700 bg-red-50 rounded px-2 py-1" :
@@ -135,7 +139,8 @@ function LogLine({ entry }: { entry: LogEntry }) {
         "text-gray-800"
       }`}
     >
-      {entry.text}
+      <span className="text-gray-400 text-xs tabular-nums shrink-0">{entry.time}</span>
+      <span>{entry.text}</span>
     </div>
   );
 }

@@ -7,6 +7,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 export function LoginPage() {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -94,17 +96,44 @@ export function LoginPage() {
             <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
               Пароль
             </label>
-            <input
-              id="login-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                error ? "border-red-300" : "border-gray-300"
-              }`}
-            />
+            <div className="relative">
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyUp={(e) => setCapsLockOn(e.getModifierState("CapsLock"))}
+                required
+                autoComplete="current-password"
+                aria-describedby={capsLockOn ? "capslock-warning" : undefined}
+                className={`w-full border rounded-md pl-3 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  error ? "border-red-300" : "border-gray-300"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? (
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                    <path d="M2 2l14 14M7.4 7.6a2.2 2.2 0 0 0 3 3M5.2 5.3C3.4 6.4 2 9 2 9s2.5 5 7 5c1.3 0 2.4-.4 3.4-1M9 4c4.5 0 7 5 7 5s-.6 1.2-1.7 2.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                    <path d="M2 9C2 9 4.5 4 9 4s7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                    <circle cx="9" cy="9" r="2.2" stroke="currentColor" strokeWidth="1.4" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            {capsLockOn && (
+              <p id="capslock-warning" role="status" className="mt-1 text-xs text-amber-700 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" aria-hidden="true" />
+                Включён Caps Lock
+              </p>
+            )}
           </div>
 
           {error && (
