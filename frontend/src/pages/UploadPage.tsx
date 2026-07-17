@@ -237,7 +237,7 @@ export function UploadPage() {
               <div>
                 <div className="text-gray-400 text-3xl mb-2">📁</div>
                 <p className="text-gray-600">Перетащи файл или нажми для выбора</p>
-                <p className="text-xs text-gray-400 mt-1">MP3, WAV, OGG, FLAC, M4A, WEBM — до 2 ГБ</p>
+                <p className="text-xs text-gray-500 mt-1">MP3, WAV, OGG, FLAC, M4A, WEBM — до 2 ГБ</p>
               </div>
             )}
           </div>
@@ -279,7 +279,14 @@ export function UploadPage() {
                 <span>Загрузка...</span>
                 <span>{progress}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="w-full bg-gray-200 rounded-full h-2"
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Загрузка файла"
+              >
                 <div
                   className="bg-blue-500 h-2 w-full rounded-full origin-left transition-transform duration-200 ease-linear"
                   style={{ transform: `scaleX(${progress / 100})` }}

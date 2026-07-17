@@ -101,7 +101,7 @@ export function CallsListPage() {
         <FadeIn>
           {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
           {data && (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -148,13 +148,13 @@ export function CallsListPage() {
                   <button
                     disabled={page === 1}
                     onClick={() => { const p = page - 1; setPage(p); syncUrl(p, filters); load(p); }}
-                    className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
+                    className="px-3 py-2 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
                   >Назад</button>
                   <span>Стр. {page} / {data.pages}</span>
                   <button
                     disabled={page >= data.pages}
                     onClick={() => { const p = page + 1; setPage(p); syncUrl(p, filters); load(p); }}
-                    className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
+                    className="px-3 py-2 border rounded disabled:opacity-40 hover:bg-gray-100 active:scale-[0.97] transition-[background-color,opacity,transform] motion-reduce:active:scale-100"
                   >Вперёд</button>
                 </div>
               )}

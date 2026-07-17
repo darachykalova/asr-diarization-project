@@ -24,7 +24,9 @@ let _toastId = 0;
 const STATUS_COLOR: Record<string, string> = {
   done: "bg-green-600",
   failed: "bg-red-600",
-  partial: "bg-yellow-500",
+  // yellow-500 с белым текстом не проходит контраст (~1.9:1); на сплошном
+  // тосте (не soft-tint бейдже) нужен более тёмный жёлтый
+  partial: "bg-yellow-700",
 };
 const STATUS_LABEL: Record<string, string> = {
   done: "Готово",
@@ -74,10 +76,12 @@ export function Notifications() {
     return () => clearInterval(id);
   }, [token]);
 
-  if (toasts.length === 0) return null;
-
   return (
-    <div className="fixed bottom-28 right-4 z-50 flex flex-col gap-2 items-end">
+    <div
+      className="fixed bottom-28 right-4 z-50 flex flex-col gap-2 items-end"
+      role="status"
+      aria-live="polite"
+    >
       {toasts.map(t => (
         <ToastItem key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
       ))}

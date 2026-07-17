@@ -49,7 +49,7 @@ function VBar({ value, max, label }: { value: number; max: number; label: string
     <div className="flex flex-col items-center gap-1 min-w-0">
       <span className="text-xs text-gray-500">{value}</span>
       <div className="w-8 bg-gray-100 rounded-t overflow-hidden flex items-end" style={{ height: 80 }}>
-        <div className="w-8 bg-indigo-400 rounded-t" style={{ height: `${pct}%` }} />
+        <div className="w-8 bg-blue-400 rounded-t" style={{ height: `${pct}%` }} />
       </div>
       <span className="text-xs text-gray-500 rotate-45 origin-left whitespace-nowrap"
             style={{ fontSize: 10 }}>
@@ -114,9 +114,9 @@ export function AnalyticsPage() {
         {/* Частые слова */}
         <div className="bg-white rounded-lg shadow p-5">
           <h2 className="font-semibold text-gray-800 mb-4">Частые слова</h2>
-          {!words && <p className="text-gray-400 text-sm">Загрузка…</p>}
+          {!words && <p className="text-gray-500 text-sm">Загрузка…</p>}
           {words && words.length === 0 && (
-            <p className="text-gray-400 text-sm">Нет данных</p>
+            <p className="text-gray-500 text-sm">Нет данных</p>
           )}
           {words && words.map(w => (
             <HBar key={w.word} label={w.word} value={w.count} max={maxWord} />
@@ -126,9 +126,9 @@ export function AnalyticsPage() {
         {/* Частые спикеры */}
         <div className="bg-white rounded-lg shadow p-5">
           <h2 className="font-semibold text-gray-800 mb-4">Частые спикеры</h2>
-          {!speakers && <p className="text-gray-400 text-sm">Загрузка…</p>}
+          {!speakers && <p className="text-gray-500 text-sm">Загрузка…</p>}
           {speakers && speakers.length === 0 && (
-            <p className="text-gray-400 text-sm">Нет данных</p>
+            <p className="text-gray-500 text-sm">Нет данных</p>
           )}
           {speakers && speakers.map(s => (
             <HBar key={s.speaker_id} label={s.name} value={s.count} max={maxSpk} />
@@ -150,9 +150,9 @@ export function AnalyticsPage() {
             <option value="hour">По часам</option>
           </select>
         </div>
-        {!uploads && <p className="text-gray-400 text-sm">Загрузка…</p>}
+        {!uploads && <p className="text-gray-500 text-sm">Загрузка…</p>}
         {uploads && uploads.length === 0 && (
-          <p className="text-gray-400 text-sm">Нет данных</p>
+          <p className="text-gray-500 text-sm">Нет данных</p>
         )}
         {uploads && uploads.length > 0 && (
           <FadeIn key={bucket}>

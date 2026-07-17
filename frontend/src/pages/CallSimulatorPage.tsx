@@ -94,7 +94,7 @@ export function CallSimulatorPage() {
           onClick={active ? handleStopClick : start}
           disabled={connecting}
           className={`text-white px-6 py-2.5 rounded-lg active:scale-[0.97] transition-[background-color,transform] duration-200 ease-out motion-reduce:active:scale-100 disabled:opacity-60 ${
-            active ? "bg-gray-700 hover:bg-gray-800" : "bg-green-700 hover:bg-green-800"
+            active ? "bg-gray-700 hover:bg-gray-800" : "bg-blue-600 hover:bg-blue-700"
           }`}
         >
           {connecting ? "Соединение…" : active ? "Завершить" : "Позвонить"}

@@ -293,14 +293,14 @@ export function AudioListPage() {
       <form onSubmit={handleSearch} className="bg-white rounded-lg shadow p-5 mb-6">
         <div className="flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[240px]">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Поиск по тексту транскрипции</label>
-            <input type="text" value={filters.q} onChange={set("q")}
+            <label htmlFor="audio-q" className="block text-xs font-medium text-gray-500 mb-1">Поиск по тексту транскрипции</label>
+            <input id="audio-q" type="text" value={filters.q} onChange={set("q")}
               placeholder="Слово или фраза…"
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="w-48">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Статус</label>
-            <select value={filters.status} onChange={set("status")}
+            <label htmlFor="audio-status" className="block text-xs font-medium text-gray-500 mb-1">Статус</label>
+            <select id="audio-status" value={filters.status} onChange={set("status")}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Все статусы</option>
               {Object.entries(STATUS_LABEL).map(([v, l]) => (
@@ -330,55 +330,55 @@ export function AudioListPage() {
           <div className="overflow-hidden">
           <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-1">ID записи</label>
-              <input type="text" value={filters.jobIdQ} onChange={set("jobIdQ")}
+              <label htmlFor="audio-jobIdQ" className="block text-xs font-medium text-gray-500 mb-1">ID записи</label>
+              <input id="audio-jobIdQ" type="text" value={filters.jobIdQ} onChange={set("jobIdQ")}
                 placeholder="Часть или полный UUID…"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Имя спикера</label>
-              <input type="text" value={filters.speakerName} onChange={set("speakerName")}
+              <label htmlFor="audio-speakerName" className="block text-xs font-medium text-gray-500 mb-1">Имя спикера</label>
+              <input id="audio-speakerName" type="text" value={filters.speakerName} onChange={set("speakerName")}
                 placeholder="Часть имени…"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">ID спикера</label>
-              <input type="number" value={filters.speakerId} onChange={set("speakerId")}
+              <label htmlFor="audio-speakerId" className="block text-xs font-medium text-gray-500 mb-1">ID спикера</label>
+              <input id="audio-speakerId" type="number" value={filters.speakerId} onChange={set("speakerId")}
                 placeholder="—" min="1"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Спикеров от</label>
-              <input type="number" value={filters.minSpeakers} onChange={set("minSpeakers")}
+              <label htmlFor="audio-minSpeakers" className="block text-xs font-medium text-gray-500 mb-1">Спикеров от</label>
+              <input id="audio-minSpeakers" type="number" value={filters.minSpeakers} onChange={set("minSpeakers")}
                 placeholder="—" min="0"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Спикеров до</label>
-              <input type="number" value={filters.maxSpeakers} onChange={set("maxSpeakers")}
+              <label htmlFor="audio-maxSpeakers" className="block text-xs font-medium text-gray-500 mb-1">Спикеров до</label>
+              <input id="audio-maxSpeakers" type="number" value={filters.maxSpeakers} onChange={set("maxSpeakers")}
                 placeholder="—" min="0"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Длительность от (мин)</label>
-              <input type="number" value={filters.durationMin} onChange={set("durationMin")}
+              <label htmlFor="audio-durationMin" className="block text-xs font-medium text-gray-500 mb-1">Длительность от (мин)</label>
+              <input id="audio-durationMin" type="number" value={filters.durationMin} onChange={set("durationMin")}
                 placeholder="—" min="0" step="0.5"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Длительность до (мин)</label>
-              <input type="number" value={filters.durationMax} onChange={set("durationMax")}
+              <label htmlFor="audio-durationMax" className="block text-xs font-medium text-gray-500 mb-1">Длительность до (мин)</label>
+              <input id="audio-durationMax" type="number" value={filters.durationMax} onChange={set("durationMax")}
                 placeholder="—" min="0" step="0.5"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Дата с</label>
-              <input type="date" value={filters.dateFrom} onChange={set("dateFrom")}
+              <label htmlFor="audio-dateFrom" className="block text-xs font-medium text-gray-500 mb-1">Дата с</label>
+              <input id="audio-dateFrom" type="date" value={filters.dateFrom} onChange={set("dateFrom")}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Дата по</label>
-              <input type="date" value={filters.dateTo} onChange={set("dateTo")}
+              <label htmlFor="audio-dateTo" className="block text-xs font-medium text-gray-500 mb-1">Дата по</label>
+              <input id="audio-dateTo" type="date" value={filters.dateTo} onChange={set("dateTo")}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
@@ -416,7 +416,7 @@ export function AudioListPage() {
                   </div>
                 )}
               </div>
-              <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -504,10 +504,10 @@ export function AudioListPage() {
               {data.pages > 1 && (
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <button onClick={() => goPage(page - 1)} disabled={page <= 1}
-                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
+                    className="px-3 py-2 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
                   <span className="text-sm text-gray-600">Страница {data.page} из {data.pages}</span>
                   <button onClick={() => goPage(page + 1)} disabled={page >= data.pages}
-                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
+                    className="px-3 py-2 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
                 </div>
               )}
             </>

@@ -157,7 +157,7 @@ export function AuditLogPage() {
           {data && (
             <>
               <div className="text-sm text-gray-500 mb-2">Событий: {data.total}</div>
-              <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -170,7 +170,7 @@ export function AuditLogPage() {
                   <tbody className="divide-y divide-gray-100">
                     {data.items.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="text-center py-8 text-gray-400">
+                        <td colSpan={4} className="text-center py-8 text-gray-500">
                           <p>Нет событий</p>
                           {filtersActive && (
                             <button
@@ -204,10 +204,10 @@ export function AuditLogPage() {
               {data.pages > 1 && (
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <button onClick={() => goPage(page - 1)} disabled={page <= 1}
-                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
+                    className="px-3 py-2 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">←</button>
                   <span className="text-sm text-gray-600">Страница {data.page} из {data.pages}</span>
                   <button onClick={() => goPage(page + 1)} disabled={page >= data.pages}
-                    className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
+                    className="px-3 py-2 rounded border text-sm disabled:opacity-40 hover:bg-gray-100">→</button>
                 </div>
               )}
             </>

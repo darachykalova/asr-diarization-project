@@ -212,7 +212,7 @@ export function UsersPage() {
           </form>
 
           {/* Таблица */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-lg shadow overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -226,7 +226,7 @@ export function UsersPage() {
               <tbody className="divide-y divide-gray-100">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-8 text-gray-400">
+                    <td colSpan={5} className="text-center py-8 text-gray-500">
                       Пользователей пока нет — создайте первого через форму выше.
                     </td>
                   </tr>
@@ -246,7 +246,7 @@ export function UsersPage() {
                           disabled={isSelf || busy}
                           aria-label={`Роль пользователя ${u.login}`}
                           title={isSelf ? "Свою роль изменить нельзя" : undefined}
-                          className="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                          className="border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                         >
                           <option value="moderator">Модератор</option>
                           <option value="super_admin">Супер-Админ</option>
@@ -262,13 +262,13 @@ export function UsersPage() {
                       <td className="px-4 py-3 text-gray-500">{fmtDate(u.created_at)}</td>
                       <td className="px-4 py-3">
                         {isSelf ? (
-                          <span className="text-xs text-gray-400" title="Себя заблокировать нельзя">—</span>
+                          <span className="text-xs text-gray-500" title="Себя заблокировать нельзя">—</span>
                         ) : (
                           <button
                             onClick={() => askBlockConfirm(u)}
                             disabled={busy}
                             aria-label={`${u.is_blocked ? "Разблокировать" : "Заблокировать"} пользователя ${u.login}`}
-                            className={`text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 ${
+                            className={`text-xs px-2.5 py-1.5 rounded transition-colors disabled:opacity-50 ${
                               u.is_blocked
                                 ? "bg-green-50 text-green-700 hover:bg-green-100"
                                 : "bg-red-50 text-red-700 hover:bg-red-100"
