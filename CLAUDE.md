@@ -60,7 +60,9 @@ normalize → asr → diarize → merge_align → persist → identify_speakers 
 
 **Chunking + auto model selection** — `asr_task` calls `chunking_service.split_audio()` for audio >6 min. Splits at VAD silence boundaries (pyannote `_segmentation`, already cached) with energy fallback. Each chunk gets its own SNR → Whisper model (tiny/base/large-v2). Diarization always runs on the full file.
 
-**Model cache** — `services/model_cache.py` stores all ML models in module-level globals per worker process (load once, reuse across jobs). Startup refuses if any of the 5 required models are missing locally (`services/model_registry.py`).
+**Model cache** — `services/model_cache.py` stores all ML models in module-level globals per worker process (load once, reuse across jobs). Startup refuses if any of the 5 required models are missing locally (`services/model_registry.py`). Models live in MinIO bucket `ml-models`; on startup each worker runs `scripts/sync_models_from_minio.py` (skips if already present locally) so a new worker/machine doesn't need the image rebuilt with `HF_TOKEN` to get models.
+
+**Reliability** — pipeline tasks auto-retry transient failures (exponential backoff + jitter); after retries are exhausted the job routes to the `dead_letter` queue and is marked `failed` with `error_code=MAX_RETRIES_EXCEEDED`. `task_acks_late=True` + `task_reject_on_worker_lost=True` mean a job killed mid-flight (e.g. OOM) is requeued, not lost — separate from the worker-restart self-healing below.
 
 **Worker self-healing** — `tasks/recovery.py:requeue_stuck_jobs()` runs once per worker start (`worker_ready` signal in `tasks/audio_tasks.py`, not per prefork child). It finds jobs stuck in `processing`/`queued` past `STUCK_JOB_MAX_AGE_HOURS` (default 2h) — orphaned when a worker or Redis died mid-job, since `task_acks_late` doesn't help if the broker itself is lost — and re-submits the pipeline chain for them (safe because `persist_task` deletes the old transcript before writing, so re-running is idempotent). Jobs with no `audio_key` can't be requeued and are marked `failed` instead.
 
@@ -74,7 +76,9 @@ normalize → asr → diarize → merge_align → persist → identify_speakers 
 
 **MCP-сервер** — `mcp_server/server.py` (FastMCP, stdio), конфиг `.mcp.json` в корне.
 Работает на хосте, ходит в Postgres через localhost:5432. Инструменты:
-search_transcripts, get_transcript, list_recent_calls, get_call, call_stats.
+search_transcripts, get_transcript, list_recent_calls, get_call, call_stats,
+list_recordings, list_speakers, get_speaker_info, analytics_summary,
+frequent_words, frequent_speakers, uploads_over_time.
 Требует `pip install -r mcp_server/requirements.txt` на хосте и запущенный
 контейнер postgres. Пакет `mcp` не входит в основной requirements.txt намеренно.
 
