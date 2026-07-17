@@ -117,9 +117,19 @@ def test_patch_role_409_last_super_admin():
         "api.routes.admin_users.crud.update_admin_user_role",
         side_effect=ValueError("Нельзя убрать роль у последнего активного супер-админа"),
     ):
-        resp = client.patch("/v1/admin/users/1", json={"role": "moderator"})
+        # id != id текущего админа, иначе сработает self-guard раньше crud
+        resp = client.patch("/v1/admin/users/2", json={"role": "moderator"})
     app.dependency_overrides.pop(get_current_user, None)
     assert resp.status_code == 409
+
+
+def test_patch_role_409_self_change():
+    """Смена собственной роли запрещена независимо от количества супер-админов."""
+    app.dependency_overrides[get_current_user] = lambda: _user(uid=1)
+    resp = client.patch("/v1/admin/users/1", json={"role": "moderator"})
+    app.dependency_overrides.pop(get_current_user, None)
+    assert resp.status_code == 409
+    assert "собственную роль" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
@@ -145,9 +155,19 @@ def test_patch_block_409_last_super_admin():
         "api.routes.admin_users.crud.set_admin_user_blocked",
         side_effect=ValueError("Нельзя заблокировать последнего активного супер-админа"),
     ):
-        resp = client.patch("/v1/admin/users/1", json={"is_blocked": True})
+        # id != id текущего админа, иначе сработает self-guard раньше crud
+        resp = client.patch("/v1/admin/users/2", json={"is_blocked": True})
     app.dependency_overrides.pop(get_current_user, None)
     assert resp.status_code == 409
+
+
+def test_patch_block_409_self_block():
+    """Самоблокировка запрещена даже когда есть другие супер-админы."""
+    app.dependency_overrides[get_current_user] = lambda: _user(uid=1)
+    resp = client.patch("/v1/admin/users/1", json={"is_blocked": True})
+    app.dependency_overrides.pop(get_current_user, None)
+    assert resp.status_code == 409
+    assert "собственную" in resp.json()["detail"]
 
 
 def test_patch_user_404():

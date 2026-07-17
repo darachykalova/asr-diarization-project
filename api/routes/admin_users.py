@@ -58,8 +58,16 @@ def patch_user(
     user_id: int,
     body: PatchUserRequest,
     db: Session = Depends(get_db),
-    _user=Depends(_super_admin),
+    current_user=Depends(_super_admin),
 ):
+    # Самоблокировка/самопонижение выбрасывает админа из системы на следующем
+    # же запросе; guard «последний супер-админ» в crud это покрывает не всегда
+    # (при двух и более супер-админах он пропускает).
+    if user_id == current_user.id:
+        if body.is_blocked:
+            raise HTTPException(status_code=409, detail="Нельзя заблокировать собственную учётную запись")
+        if body.role is not None and body.role != current_user.role:
+            raise HTTPException(status_code=409, detail="Нельзя изменить собственную роль")
     try:
         if body.role is not None:
             user = crud.update_admin_user_role(db, user_id, body.role)
