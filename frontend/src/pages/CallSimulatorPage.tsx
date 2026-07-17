@@ -31,7 +31,11 @@ export function CallSimulatorPage() {
         if (msg.type === "agent_text") pushLog(`Агент: ${msg.text}`);
         if (msg.type === "hangup") { pushLog("— Агент завершил звонок —", "system"); stop(); }
       } else {
-        const ctx = ctxRef.current!;
+        const ctx = ctxRef.current;
+        // Аудио от агента может прилететь раньше, чем разрешение на микрофон
+        // будет получено и AudioContext создастся — в этом случае просто
+        // пропускаем кадр, воспроизводить всё равно ещё некуда.
+        if (!ctx) return;
         const buf = await ctx.decodeAudioData(ev.data.slice(0));
         const src = ctx.createBufferSource();
         src.buffer = buf; src.connect(ctx.destination); src.start();
