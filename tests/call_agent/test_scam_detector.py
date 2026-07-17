@@ -14,7 +14,7 @@ def test_loads_scenarios():
     assert keys == {
         "fake_bank", "gas_service", "police",
         "relative_in_trouble", "mobile_operator", "tech_support",
-        "gosuslugi", "delivery", "broker_investment",
+        "gosuslugi", "delivery", "broker_investment", "lottery",
     }
 
 
@@ -202,4 +202,18 @@ def test_broker_investment_crosses_threshold():
 def test_innocent_broker_account_stays_undetermined():
     d = _detector()
     d.feed("я открыл брокерский счёт в прошлом году")    # 35 < 70
+    assert d.verdict()[0] == "undetermined"
+
+
+def test_lottery_crosses_threshold():
+    d = _detector()
+    d.feed("поздравляем вы выиграли приз в лотерее")   # 45 + 50 + 30 = 125
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "scam"
+    assert scenario == "lottery"
+
+
+def test_innocent_lottery_talk_stays_undetermined():
+    d = _detector()
+    d.feed("мы вчера играли в лотерею с друзьями")     # 30 < 70
     assert d.verdict()[0] == "undetermined"
