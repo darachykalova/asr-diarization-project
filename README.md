@@ -442,6 +442,10 @@ Two roles: `moderator` (audio + transcripts) and `super_admin` (+ users, audit l
 platform settings). Pages: audio list/detail, upload, calls, analytics, users, audit log,
 settings, and a call simulator that talks to the call agent over WebSocket.
 
+Responsive down to mobile widths (collapsible nav) and audited for accessibility
+(labeled form fields, keyboard-accessible controls, WCAG-contrast text, ARIA roles
+on dialogs/toasts/menus) — see `DESIGN.md` for the visual system.
+
 ---
 
 ## Anti-scam call agent
@@ -476,9 +480,10 @@ call with `{call_id, verdict}`.
 ## MCP server
 
 `mcp_server/server.py` (FastMCP) exposes transcript search and call analytics as tools
-for AI assistants (e.g. Claude Code), reading directly from PostgreSQL:
-`search_transcripts`, `get_transcript`, `list_recent_calls`, `get_call`, `call_stats`,
-and more analytics helpers.
+for AI assistants (e.g. Claude Code), reading directly from PostgreSQL: `search_transcripts`,
+`get_transcript`, `list_recent_calls`, `get_call`, `call_stats`, `list_recordings`,
+`list_speakers`, `get_speaker_info`, `analytics_summary`, `frequent_words`,
+`frequent_speakers`, `uploads_over_time`.
 
 Two transports:
 
@@ -593,7 +598,7 @@ call_agent/                 # anti-scam voice agent (separate image, port 8100)
 └── recorder.py                # call recording -> MinIO -> pipeline chain
 
 mcp_server/                 # FastMCP server (stdio or HTTP) for AI assistants
-└── server.py                 # search_transcripts, get_transcript, call_stats, ...
+└── server.py                 # transcript search, calls, speakers, analytics — 12 tools
 
 n8n/workflows/               # call-alert-telegram.json (imported manually via n8n UI)
 
