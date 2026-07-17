@@ -14,7 +14,7 @@ def test_loads_scenarios():
     assert keys == {
         "fake_bank", "gas_service", "police",
         "relative_in_trouble", "mobile_operator", "tech_support",
-        "gosuslugi",
+        "gosuslugi", "delivery",
     }
 
 
@@ -172,4 +172,19 @@ def test_gosuslugi_crosses_threshold():
 def test_innocent_gosuslugi_mention_stays_undetermined():
     d = _detector()
     d.feed("я вчера зашёл на госуслуги и записался к врачу")  # 40 < 70
+    assert d.verdict()[0] == "undetermined"
+
+
+def test_delivery_crosses_threshold():
+    d = _detector()
+    d.feed("ваша посылка задержана на таможне")   # 25 + 40 = 65
+    d.feed("нужно оплатить пошлину")               # 50 -> 115
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "scam"
+    assert scenario == "delivery"
+
+
+def test_innocent_parcel_talk_stays_undetermined():
+    d = _detector()
+    d.feed("посылка придёт завтра курьером")       # 25 < 70
     assert d.verdict()[0] == "undetermined"
