@@ -14,6 +14,7 @@ def test_loads_scenarios():
     assert keys == {
         "fake_bank", "gas_service", "police",
         "relative_in_trouble", "mobile_operator", "tech_support",
+        "gosuslugi",
     }
 
 
@@ -156,4 +157,19 @@ def test_tech_support_crosses_threshold():
 def test_innocent_software_talk_stays_undetermined():
     d = _detector()
     d.feed("установи мне программу для монтажа видео")     # 40 < 70
+    assert d.verdict()[0] == "undetermined"
+
+
+def test_gosuslugi_crosses_threshold():
+    d = _detector()
+    d.feed("вам звонят с портала госуслуг")                 # 40
+    d.feed("продиктуйте код подтверждения от госуслуг")      # 40 + 60 = 100
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "scam"
+    assert scenario == "gosuslugi"
+
+
+def test_innocent_gosuslugi_mention_stays_undetermined():
+    d = _detector()
+    d.feed("я вчера зашёл на госуслуги и записался к врачу")  # 40 < 70
     assert d.verdict()[0] == "undetermined"
