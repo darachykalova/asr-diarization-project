@@ -13,7 +13,7 @@ def test_loads_scenarios():
     keys = {s.key for s in scenarios}
     assert keys == {
         "fake_bank", "gas_service", "police",
-        "relative_in_trouble", "mobile_operator",
+        "relative_in_trouble", "mobile_operator", "tech_support",
     }
 
 
@@ -141,4 +141,19 @@ def test_mobile_operator_crosses_threshold():
 def test_innocent_simcard_talk_stays_undetermined():
     d = _detector()
     d.feed("я купил новую сим-карту вчера")          # 40 < 70
+    assert d.verdict()[0] == "undetermined"
+
+
+def test_tech_support_crosses_threshold():
+    d = _detector()
+    d.feed("у вас вирус на компьютере")                   # 40
+    d.feed("установите программу удалённого доступа")      # 50 + 40 = 90
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "scam"
+    assert scenario == "tech_support"
+
+
+def test_innocent_software_talk_stays_undetermined():
+    d = _detector()
+    d.feed("установи мне программу для монтажа видео")     # 40 < 70
     assert d.verdict()[0] == "undetermined"
