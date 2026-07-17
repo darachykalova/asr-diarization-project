@@ -146,8 +146,8 @@ def test_innocent_simcard_talk_stays_undetermined():
 
 def test_tech_support_crosses_threshold():
     d = _detector()
-    d.feed("у вас вирус на компьютере")                   # 40
-    d.feed("установите программу удалённого доступа")      # 50 + 40 = 90
+    d.feed("у вас вирус на компьютере")                       # 40
+    d.feed("нужен удалённый доступ к вашему компьютеру")        # 50 -> 90
     verdict, scenario, conf = d.verdict()
     assert verdict == "scam"
     assert scenario == "tech_support"
