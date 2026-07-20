@@ -16,7 +16,7 @@ def summarize_transcript(full_text: str, settings, http_post=None) -> str | None
         resp = http_post(
             f"{settings.ollama_url}/api/generate",
             json={"model": settings.ollama_model, "prompt": _PROMPT + full_text, "stream": False},
-            timeout=120,
+            timeout=240,
         )
         if resp.status_code != 200:
             return None

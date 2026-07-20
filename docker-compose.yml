@@ -223,6 +223,12 @@ services:
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
+    environment:
+      # Модель без запросов выгружается из памяти за 5 минут (дефолт), а холодная
+      # загрузка qwen2.5:1.5b занимает ~90-100с — дольше таймаутов вызывающих
+      # сервисов (semantic_check.py: 15s; nginx /v1/ proxy_read_timeout). Держим
+      # модель прогретой, чтобы избежать этого на каждый звонок/выжимку.
+      OLLAMA_KEEP_ALIVE: "30m"
     volumes:
       - ollama_data:/root/.ollama
     networks:
