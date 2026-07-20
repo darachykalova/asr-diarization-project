@@ -24,7 +24,11 @@ def check_scam_semantically(transcript: str, settings, http_post=None) -> bool:
                     + "\n\nЭто мошенничество? Ответь одним словом: да или нет.",
                 "stream": False,
             },
-            timeout=15,
+            # Была 15s: холодная загрузка модели после простоя (>keep_alive) занимает
+            # ~90-100с — таймаут срабатывал раньше ответа, и проверка молча уходила
+            # в False на каждом первом звонке. Вызов асинхронный (ThreadPoolExecutor
+            # в session.py), так что более долгий таймаут не блокирует сам звонок.
+            timeout=120,
         )
         if resp.status_code != 200:
             logger.warning(

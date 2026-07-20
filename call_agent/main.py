@@ -116,7 +116,14 @@ def _check_call_agent_models() -> None:
 
 
 def _check_ollama_ready() -> None:
-    """Warn (never crash) if Ollama is unreachable or the model is not pulled."""
+    """Warn (never crash) if Ollama is unreachable or the model is not pulled.
+
+    Also warms the model into memory: a cold load takes ~90-100s (measured), which
+    is longer than semantic_check.py's per-request timeout used to be — the first
+    live call after container start (or after OLLAMA_KEEP_ALIVE expires) would
+    silently misdetect scam calls as safe. Loading it here, once, at startup avoids
+    that for the common case.
+    """
     import httpx
     try:
         resp = httpx.get(f"{settings.ollama_url}/api/tags", timeout=5)
@@ -128,10 +135,22 @@ def _check_ollama_ready() -> None:
                 "always answer 'not scam'. Pull it: "
                 "docker compose exec ollama ollama pull %s",
                 settings.ollama_model, models or "none", settings.ollama_model)
+            return
     except Exception as exc:
         logger.warning(
             "Ollama not reachable at %s (%s). Semantic scam check disabled.",
             settings.ollama_url, exc)
+        return
+
+    try:
+        httpx.post(f"{settings.ollama_url}/api/generate",
+                   json={"model": settings.ollama_model, "prompt": "привет", "stream": False},
+                   timeout=120)
+        logger.info("Ollama model %r warmed up.", settings.ollama_model)
+    except Exception as exc:
+        logger.warning(
+            "Ollama warmup request failed (model=%s, url=%s): %s — first call may "
+            "miss the semantic scam check.", settings.ollama_model, settings.ollama_url, exc)
 
 
 @app.websocket("/ws/call")

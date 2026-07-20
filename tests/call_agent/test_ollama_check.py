@@ -23,9 +23,22 @@ def test_warns_when_model_missing(monkeypatch, caplog):
 def test_silent_when_model_present(monkeypatch, caplog):
     monkeypatch.setattr(httpx, "get", lambda url, timeout: FakeResp(
         {"models": [{"name": "qwen2.5:3b"}]}))
+    monkeypatch.setattr(httpx, "post", lambda url, json, timeout: FakeResp({}))
     with caplog.at_level(logging.WARNING, logger="call_agent.main"):
         _check_ollama_ready()
     assert caplog.records == []
+
+
+def test_warns_but_does_not_raise_when_warmup_fails(monkeypatch, caplog):
+    monkeypatch.setattr(httpx, "get", lambda url, timeout: FakeResp(
+        {"models": [{"name": "qwen2.5:3b"}]}))
+
+    def boom(url, json, timeout):
+        raise RuntimeError("timed out")
+    monkeypatch.setattr(httpx, "post", boom)
+    with caplog.at_level(logging.WARNING, logger="call_agent.main"):
+        _check_ollama_ready()   # не должно бросить
+    assert any("warmup" in r.message.lower() for r in caplog.records)
 
 
 def test_warns_but_does_not_raise_when_ollama_down(monkeypatch, caplog):
