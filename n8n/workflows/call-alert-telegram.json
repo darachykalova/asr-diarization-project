@@ -17,7 +17,7 @@
     {
       "parameters": {
         "chatId": "1109993976",
-        "text": "={{ $json.body.verdict === 'scam' ? '⚠️ Мошенник обнаружен' : 'Звонок завершён: ' + $json.body.verdict }} (call_id: {{ $json.body.call_id }})",
+        "text": "={{ ($json.body.verdict === 'scam' ? '⚠️ Мошенник обнаружен' : 'Звонок завершён: ' + $json.body.verdict) + ' (call_id: ' + $json.body.call_id + ')' + ($json.body.summary ? '\n\n📝 ' + $json.body.summary : '') }}",
         "additionalFields": {}
       },
       "id": "a3b2c1d0-5e4f-4c3b-8a19-2b3c4d5e6f70",
