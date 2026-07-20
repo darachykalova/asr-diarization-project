@@ -191,6 +191,13 @@ def test_innocent_parcel_talk_stays_undetermined():
     assert d.verdict()[0] == "undetermined"
 
 
+def test_innocent_courier_code_stays_undetermined():
+    d = _detector()
+    d.feed("назовите код курьеру для получения посылки")  # 40 (код+курьер) + 25 (посылк) = 65 < 70
+    verdict, scenario, conf = d.verdict()
+    assert verdict == "undetermined"
+
+
 def test_broker_investment_crosses_threshold():
     d = _detector()
     d.feed("здравствуйте я ваш личный консультант")     # 40

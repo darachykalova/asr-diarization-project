@@ -9,6 +9,6 @@ triggers:
   - stems: ["пошлин", "оплат"]
     weight: 50
   - stems: ["код", "курьер"]
-    weight: 60
+    weight: 40
   - phrases: ["оплатите доставку", "доплатить за доставку"]
     weight: 35
