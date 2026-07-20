@@ -101,6 +101,105 @@ def call_stats(days: int = 7) -> dict:
         db.close()
 
 
+def _speaker_dict(speaker) -> dict:
+    return {
+        "id": speaker.id,
+        "name": speaker.name,
+        "phone": speaker.phone,
+        "kind": speaker.kind,
+        "created_at": _clean(speaker.created_at),
+    }
+
+
+@mcp.tool()
+def list_recordings(page: int = 1, page_size: int = 20,
+                    status: str | None = None,
+                    speaker_id: int | None = None,
+                    q: str | None = None) -> dict:
+    """Список всех загруженных аудиозаписей (не только звонков) с пагинацией.
+
+    status — фильтр по статусу обработки ('completed', 'processing',
+    'failed' и т.п.), speaker_id — только записи этого спикера,
+    q — поиск по имени файла/названию.
+    """
+    db = SessionLocal()
+    try:
+        return _clean(crud.list_audio(db, page=page, page_size=page_size,
+                                      status=status, speaker_id=speaker_id, q=q))
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def list_speakers(page: int = 1, page_size: int = 20) -> dict:
+    """Список известных спикеров (собеседников) с пагинацией."""
+    db = SessionLocal()
+    try:
+        result = crud.get_speakers_paginated(db, page=page, page_size=page_size)
+        result["items"] = [_speaker_dict(s) for s in result["items"]]
+        return result
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_speaker_info(speaker_id: int) -> dict:
+    """Данные одного спикера по id: имя, телефон, тип (kind), дата создания."""
+    db = SessionLocal()
+    try:
+        speaker = crud.get_speaker(db, speaker_id)
+        if speaker is None:
+            return {"error": f"Спикер с id={speaker_id} не найден"}
+        return _speaker_dict(speaker)
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def analytics_summary() -> dict:
+    """Общая сводка по платформе: сколько всего аудиозаписей, сколько уже
+    расшифровано, разбивка задач по статусам обработки."""
+    db = SessionLocal()
+    try:
+        return crud.analytics_summary(db)
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def frequent_words(limit: int = 50) -> list[dict]:
+    """Топ самых частых слов по всем транскриптам (стоп-слова и короткие
+    токены отфильтрованы)."""
+    db = SessionLocal()
+    try:
+        return crud.frequent_words(db, limit=limit)
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def frequent_speakers(limit: int = 20) -> list[dict]:
+    """Топ спикеров по числу упоминаний (occurrences) во всех транскриптах."""
+    db = SessionLocal()
+    try:
+        return crud.frequent_speakers(db, limit=limit)
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def uploads_over_time(bucket: str = "day") -> list[dict]:
+    """Сколько аудио загружалось по времени, сгруппировано по bucket
+    ('day' или 'hour')."""
+    if bucket not in ("day", "hour"):
+        return [{"error": "bucket должен быть 'day' или 'hour'"}]
+    db = SessionLocal()
+    try:
+        return _clean(crud.uploads_over_time(db, bucket=bucket))
+    finally:
+        db.close()
+
+
 def _build_http_app():
     """Streamable-HTTP приложение с Bearer-авторизацией.
 
